@@ -1,0 +1,6 @@
+/target/
+/invoices/
+/error_log.txt*
+.env
+.idea/
+*.iml
