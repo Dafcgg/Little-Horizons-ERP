@@ -75,4 +75,19 @@ class CoreRulesTest {
     assertThrows(BusinessException.class, () -> finance.confirmPayment(null));
   }
 
+  @Test
+  void studentUpdateRejectsNullStatusBeforeOpeningConnection() {
+    ConnectionProvider forbidden =
+        () -> {
+          throw new AssertionError("Connection must not be opened");
+        };
+    var service =
+        new StudentService(forbidden, new com.littlehorizons.erp.dao.jdbc.JdbcStudentDao());
+    var student =
+        new com.littlehorizons.erp.model.Student(
+            1, "123", "Test", "Student", LocalDate.of(2015, 1, 1), "Street", null);
+    BusinessException error =
+        assertThrows(BusinessException.class, () -> service.updateStudent(student));
+    assertEquals("Estado inválido.", error.getMessage());
+  }
 }

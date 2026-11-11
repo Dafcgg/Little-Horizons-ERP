@@ -120,7 +120,8 @@ public final class StudentService extends TransactionalService {
   public void updateStudent(Student student) {
     validate(student);
     require(
-        Set.of("Activo", "Retirado", "Graduado", "Suspendido").contains(student.status()),
+        student.status() != null
+            && Set.of("Activo", "Retirado", "Graduado", "Suspendido").contains(student.status()),
         "Estado inválido.");
     transaction(
         c -> {
