@@ -38,6 +38,30 @@ public final class Main {
     var activities = new ActivityController(activityService, view);
     var finance = new FinanceController(financeService, view);
     var resources = new ResourceController(resourceService, view);
+    Runnable administration =
+        () ->
+            view.menu(
+                "Administración, edición e inactivación",
+                new Action(
+                    "Estudiantes, acudientes y matrículas",
+                    new StudentAdministrationController(studentService, view)::run),
+                new Action(
+                    "Académico, profesores y horarios",
+                    new AcademicAdministrationController(academicService, view)::run),
+                new Action(
+                    "Clubes y eventos",
+                    new ActivityAdministrationController(activityService, view)::run),
+                new Action(
+                    "Finanzas y anulaciones",
+                    new FinanceAdministrationController(financeService, view)::run),
+                new Action(
+                    "Recursos y préstamos",
+                    new ResourceAdministrationController(resourceService, view)::run),
+                new Action(
+                    "Grados y categorías",
+                    new CatalogController(
+                            new CatalogService(connections, new JdbcCatalogDao()), view)
+                        ::run));
     try {
       view.menu(
           "ERP Colegio Little Horizons",
@@ -45,7 +69,8 @@ public final class Main {
           new Action("Académico, profesores y asistencia", academics::run),
           new Action("Clubes y eventos", activities::run),
           new Action("Finanzas y facturación", finance::run),
-          new Action("Inventario y préstamos", resources::run));
+          new Action("Inventario y préstamos", resources::run),
+          new Action("Administración, edición e inactivación", administration));
     } catch (ConsoleView.EndOfInput ignored) {
       view.show("Fin de entrada.");
     }
