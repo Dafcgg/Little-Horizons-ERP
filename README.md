@@ -10,33 +10,27 @@ Centraliza gestión académica, actividades extracurriculares, finanzas y prést
 
 Incluye CRUD de las 26 entidades del esquema, pantallas de edición/inactivación y facturas PDF con CUFE, QR y resolución simulados. Las bajas conservan el historial cuando corresponde. Corregir un documento financiero anula el original y crea un reemplazo trazable.
 
-## 3. Autores
+## 3. Tecnologías utilizadas
 
-| Información | Datos |
-| --- | --- |
-| Nombre completo | Dilan Fonseca |
-| Correo electrónico | dfonsecatellez@gmail.com |
-| Perfil de GitHub | [Dafcgg](https://github.com/Dafcgg) |
 
-## 4. Tecnologías utilizadas
+| Tecnología / dependencia Maven    | Versión              | Uso                                               |
+| --------------------------------- | -------------------- | ------------------------------------------------- |
+| Java                              | 17                   | Records, enums, BigDecimal, lambdas y Stream API. |
+| Maven                             | Verificado con 3.6.3 | Dependencias, compilación, pruebas y empaquetado. |
+| MySQL                             | 8.0.16 o superior    | Persistencia InnoDB, FK, índices y CHECK.         |
+| `com.mysql:mysql-connector-j`     | 26.10.0              | Driver JDBC.                                      |
+| `org.apache.pdfbox:pdfbox`        | 3.0.8                | Escritura de facturas PDF.                        |
+| `com.google.zxing:core`           | 3.5.4                | Generación y verificación QR.                     |
+| `com.google.zxing:javase`         | 3.5.4                | Conversión del QR a imagen.                       |
+| `org.junit.jupiter:junit-jupiter` | 5.11.4               | Pruebas, con alcance `test`.                      |
+| `java.util.logging`               | Incluido en Java 17  | Logs de aplicación.                               |
 
-| Tecnología / dependencia Maven | Versión | Uso |
-| --- | --- | --- |
-| Java | 17 | Records, enums, BigDecimal, lambdas y Stream API. |
-| Maven | Verificado con 3.6.3 | Dependencias, compilación, pruebas y empaquetado. |
-| MySQL | 8.0.16 o superior | Persistencia InnoDB, FK, índices y CHECK. |
-| `com.mysql:mysql-connector-j` | 26.10.0 | Driver JDBC. |
-| `org.apache.pdfbox:pdfbox` | 3.0.8 | Escritura de facturas PDF. |
-| `com.google.zxing:core` | 3.5.4 | Generación y verificación QR. |
-| `com.google.zxing:javase` | 3.5.4 | Conversión del QR a imagen. |
-| `org.junit.jupiter:junit-jupiter` | 5.11.4 | Pruebas, con alcance `test`. |
-| `java.util.logging` | Incluido en Java 17 | Logs de aplicación. |
 
 `pom.xml` fija UTF-8 y `maven.compiler.release=17`. Plugins: Compiler 3.13.0, Surefire 3.5.2, JAR 3.4.2, Exec 3.5.0 y Shade 3.6.0. JAR fuerza su reconstrucción; Shade genera el ejecutable con dependencias y combina el registro de proveedores JDBC.
 
 IDE: pendiente de indicación del trainer. No se utiliza ORM y la compilación no depende del editor.
 
-## 5. Requerimientos previos
+## 4. Requerimientos previos
 
 - JDK 17 y Maven; comprobar con `java -version` y `mvn -version`.
 - MySQL 8.0+, mínimo **8.0.16** para aplicar los `CHECK` utilizados.
@@ -47,11 +41,11 @@ IDE: pendiente de indicación del trainer. No se utiliza ORM y la compilación n
 
 Entorno auditado: Java 17.0.7, Maven 3.6.3 y MySQL de la imagen `mysql:8.0`. Ejecutar con zona horaria `America/Bogota` para mantener coherencia con las fechas escolares del proyecto.
 
-## 6. Configuración de la base de datos
+## 5. Configuración de la base de datos
 
-### 6.1. Instalación nueva
+### 5.1. Instalación nueva
 
-La carpeta `docs/` se conserva localmente y está excluida del repositorio mediante `.gitignore`. Para instalar la base o ejecutar las pruebas de integración desde un clon, solicitar al autor `database.sql` y, si corresponde, la migración `002_complete_crud.sql`, y colocarlos en las rutas indicadas a continuación.
+El repositorio incluye [docs/database.sql](docs/database.sql), con las secciones DDL y DML necesarias para instalar y probar la base de datos desde un clon. La migración para instalaciones anteriores está en [docs/migrations/002_complete_crud.sql](docs/migrations/002_complete_crud.sql).
 
 Desde la raíz, sobre un servidor sin la base del proyecto:
 
@@ -65,7 +59,7 @@ No contiene `DROP DATABASE` ni se ejecuta automáticamente al abrir Java. Es ins
 
 La semilla de grados contiene las 12 denominaciones base y 18 variantes por sección para satisfacer el mínimo de filas, con niveles 0–11. Se conservan `prestamos_estudiante` y `prestamos_profesor` como tablas separadas.
 
-### 6.2. Actualizar una instalación anterior
+### 5.2. Actualizar una instalación anterior
 
 Aplicar **una sola vez**, únicamente a la base de la fase previa al CRUD completo:
 
@@ -73,9 +67,9 @@ Aplicar **una sola vez**, únicamente a la base de la fase previa al CRUD comple
 mysql -u root -p --default-character-set=utf8mb4 < docs/migrations/002_complete_crud.sql
 ```
 
-Añade actividad, estados de anulación, motivos y vínculo al pago corregido sin eliminar datos. No aplicar sobre una instalación nueva del script completo ni repetirla. La migración se verificó durante el cierre CRUD. El detalle se conserva localmente en `docs/database-changes.md`.
+Añade actividad, estados de anulación, motivos y vínculo al pago corregido sin eliminar datos. No aplicar sobre una instalación nueva del script completo ni repetirla. La migración se verificó durante el cierre CRUD.
 
-### 6.3. Cuenta y credenciales
+### 5.3. Cuenta y credenciales
 
 Crear una cuenta con contraseña propia:
 
@@ -97,25 +91,27 @@ export ERP_INVOICE_DIR='invoices'
 
 `.env.example` es una referencia y no se carga automáticamente. No versionar credenciales reales.
 
-| Variable | Comportamiento |
-| --- | --- |
-| `ERP_DB_URL` | Predeterminado: MySQL local, base `erp_little_horizons`, zona `America/Bogota`. |
-| `ERP_DB_USER` | Predeterminado: `little_horizons`. |
-| `ERP_DB_PASSWORD` | Obligatoria para conectar; sin valor predeterminado. |
-| `ERP_INVOICE_DIR` | Predeterminado: `invoices`, relativo al directorio de ejecución. |
-| `ERP_SCHOOL_NAME` | Nombre de emisor; valor de demostración identificado como DEMO. |
-| `ERP_SCHOOL_NIT` | Identificador de demostración marcado SIMULADO. |
-| `ERP_SCHOOL_ADDRESS` | Dirección de emisor configurable. |
-| `ERP_SCHOOL_PHONE` | Teléfono de emisor configurable. |
-| `ERP_SCHOOL_EMAIL` | Correo de emisor; predeterminado en `example.invalid`. |
 
-### 6.4. Driver JDBC
+| Variable             | Comportamiento                                                                  |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `ERP_DB_URL`         | Predeterminado: MySQL local, base `erp_little_horizons`, zona `America/Bogota`. |
+| `ERP_DB_USER`        | Predeterminado: `little_horizons`.                                              |
+| `ERP_DB_PASSWORD`    | Obligatoria para conectar; sin valor predeterminado.                            |
+| `ERP_INVOICE_DIR`    | Predeterminado: `invoices`, relativo al directorio de ejecución.                |
+| `ERP_SCHOOL_NAME`    | Nombre de emisor; valor de demostración identificado como DEMO.                 |
+| `ERP_SCHOOL_NIT`     | Identificador de demostración marcado SIMULADO.                                 |
+| `ERP_SCHOOL_ADDRESS` | Dirección de emisor configurable.                                               |
+| `ERP_SCHOOL_PHONE`   | Teléfono de emisor configurable.                                                |
+| `ERP_SCHOOL_EMAIL`   | Correo de emisor; predeterminado en `example.invalid`.                          |
+
+
+### 5.4. Driver JDBC
 
 Maven descarga Connector/J. JDBC descubre su proveedor automáticamente y Shade conserva ese registro en el JAR. No es necesario copiar el driver al IDE ni llamar a `Class.forName`.
 
-## 7. Instalación y ejecución
+## 6. Instalación y ejecución
 
-### 7.1. Obtener y abrir
+### 6.1. Obtener y abrir
 
 Clonar el repositorio, abrir `pom.xml` y configurar JDK 17 en el IDE:
 
@@ -124,7 +120,7 @@ git clone https://github.com/Dafcgg/Little-Horizons-ERP.git
 cd Little-Horizons-ERP
 ```
 
-### 7.2. Compilar y ejecutar
+### 6.2. Compilar y ejecutar
 
 Después de instalar o migrar la base y exportar variables:
 
@@ -149,7 +145,7 @@ La opción 6 reúne seis pantallas administrativas, incluidos grados y categorí
 
 El menú abre sin conectarse; cada operación obtiene su conexión cuando la necesita. La falta de contraseña genera un mensaje de configuración.
 
-### 7.3. Verificación completa
+### 6.3. Verificación completa
 
 ```bash
 ./scripts/test-integration.sh
@@ -161,7 +157,28 @@ Resultado actual: **62 aprobadas, 0 fallos, 0 errores y 0 omitidas**: 20 indepen
 
 Las pruebas MySQL solo se habilitan con `ERP_TEST_DB_URL`. El script configura también `ERP_TEST_DB_USER` y `ERP_TEST_DB_PASSWORD`. Sin esa URL, Maven ejecuta las 20 pruebas independientes y omite las 42 de integración. Las variables de prueba deben apuntar a una base aislada, porque los escenarios insertan y modifican registros.
 
-## 8. Arquitectura MVC + DAO/Service
+## 7. Arquitectura MVC + DAO/Service
+
+La entrega utiliza la estructura estándar de Maven. Incluye el código, las pruebas, el SQL y los archivos necesarios para compilar y ejecutar:
+
+```text
+Little-Horizons-ERP/
+├── pom.xml
+├── .gitignore
+├── .env.example
+├── README.md
+├── docs/
+│   ├── database.sql
+│   └── migrations/
+│       └── 002_complete_crud.sql
+├── scripts/
+│   └── test-integration.sh
+└── src/
+    ├── main/java/com/littlehorizons/erp/
+    └── test/java/com/littlehorizons/erp/
+```
+
+Los paquetes de producción se organizan así:
 
 ```text
 src/main/java/com/littlehorizons/erp/
@@ -179,9 +196,9 @@ El flujo es vista → controlador → servicio → DAO → MySQL. No hay SQL en 
 
 La conexión pertenece al servicio. `TransactionalService` fija `READ_COMMITTED`, abre/cierra la conexión y ejecuta commit/rollback. Los DAO reciben esa conexión y no la confirman ni la cierran. `Jdbc` encapsula `PreparedStatement` y cierre de sentencias/resultados.
 
-La documentación complementaria de `docs/` se conserva localmente y no forma parte de los archivos versionados.
+`docs/database.sql` forma parte de la entrega exigida. Los planes de trabajo, reportes temporales de auditoría y evidencias locales quedan excluidos mediante `.gitignore`.
 
-## 9. Principios SOLID y patrones aplicados
+## 8. Principios SOLID y patrones aplicados
 
 - **S — Responsabilidad única:** `ConsoleView` lee/presenta; `FinanceService` valida y calcula; `JdbcFinanceDao` persiste; `PdfInvoiceGenerator` escribe archivos.
 - **O — Abierto/cerrado:** `InvoiceRenderer` permite sustituir el generador sin modificar la transacción financiera.
@@ -191,9 +208,9 @@ La documentación complementaria de `docs/` se conserva localmente y no forma pa
 
 Patrones: MVC extendido, DAO, inyección por constructor, estrategia de renderizado y unidad de trabajo transaccional. `AcademicService` utiliza lambdas y Stream API en promedios. Las tablas variables se eligen desde enums cerrados, nunca desde texto de usuario.
 
-## 10. Módulos y funcionalidades
+## 9. Módulos y funcionalidades
 
-### 10.1. Académico
+### 9.1. Académico
 
 CRUD de estudiantes, acudientes, profesores, grados y materias, con retiro/inactivación y reactivación. Vínculos de acudientes editables y protección del último acudiente activo. La asociación inicial queda principal, de emergencia y financiera.
 
@@ -205,13 +222,13 @@ Promedios con pesos iguales y `HALF_UP`, sin convertir notas ausentes en cero ni
 
 Asistencia: presente, ausente, tardanza y excusa médica. El reporte cuenta registros Ausente por materia en un rango; para alerta semanal se consulta lunes–domingo con umbral 3. No cuenta días distintos, tardanzas ni excusas como ausencias.
 
-### 10.2. Extracurricular
+### 9.2. Extracurricular
 
 Clubes y eventos con alta, consulta, edición e inactivación/reactivación. Membresías con ingreso, consulta, edición de fecha/estado, retiro y restauración. Cupos protegidos por bloqueo del club; reducir capacidad no puede dejar sobrecupo. Inactivar un club retira sus miembros activos conservando historial.
 
 Participantes con alta, consulta, edición de posiciones y eliminación. Las posiciones solo se admiten en competencias; deben retirarse antes de convertir el evento a no competitivo.
 
-### 10.3. Financiero
+### 9.3. Financiero
 
 Conceptos y tarifas particulares con consulta, edición e inactivación/eliminación de tarifa. Obligaciones con referencia única, vencimiento, consulta, edición y anulación. Una tarifa particular es el precio final antes de IVA; permite beca total con cero y no admite negativos.
 
@@ -225,15 +242,13 @@ Pago, cabecera y detalle se confirman antes de escribir PDF. Si falla la emisió
 
 El PDF conserva emisor/acudiente e importes históricos e incluye CUFE SHA-256, QR y resolución simulados. Se guarda como `invoices/factura_000123.pdf`; pagina documentos extensos y sustituye caracteres no admitidos por la fuente. El PDF de una factura anulada muestra ese estado y su motivo.
 
-### 10.4. Recursos
+### 9.4. Recursos
 
 CRUD de categorías e inventario, con baja/inactivación y reactivación cuando corresponda. Los recursos tienen código único, categoría, ubicación y estado; no se dan de baja mientras están prestados.
 
 Préstamos en tablas separadas para estudiantes/profesores, consulta de historial, edición de vencimiento, devolución y anulación. Las operaciones bloquean la misma fila de recurso, evitando préstamos simultáneos entre ambas tablas. Devolver o anular libera disponibilidad y conserva el registro. Los préstamos cerrados no se editan; vencidos se detectan por fecha esperada y ausencia de devolución.
 
-La matriz local `docs/crud_matrix.md` detalla las operaciones de las 26 tablas, incluidas relaciones y líneas de factura conservadas como parte del documento histórico.
-
-## 11. Manejo de errores y logs
+## 10. Manejo de errores y logs
 
 `BusinessException` comunica validaciones recuperables. Las excepciones SQL y errores de renderizado se registran con su causa; la consola muestra mensajes en español y permite continuar. Los fallos deliberados de pruebas producen entradas esperadas.
 
@@ -245,13 +260,13 @@ No existe transacción distribuida entre MySQL y archivos. El PDF utiliza tempor
 
 La generación se serializa dentro de la JVM y verifica el estado de negocio antes de marcar Generada. Una regeneración fallida puede conservar un estado previamente Generada; no constituye una comprobación de integridad física del archivo. Varias JVM compartiendo directorio necesitan coordinación adicional.
 
-`.gitignore` excluye documentación local (`docs/`), credenciales locales, logs, compilados y facturas generadas.
+`.gitignore` excluye credenciales locales, configuración del editor, logs, compilados, facturas generadas, reportes de auditoría y el script histórico de simulación de commits. Conserva el SQL de instalación y migración, `.env.example`, las pruebas y el script de integración.
 
-## 12. Capturas de pantalla
+## 11. Capturas de pantalla
 
-No se han incorporado capturas gráficas. El menú de la sección 7 documenta la navegación y las pruebas verifican texto de PDF, QR decodificable y pantallas administrativas conectadas a servicios reales. Se pueden añadir capturas reales de consola y documentos de demostración antes de entregar.
+No se han incorporado capturas gráficas. El menú de la sección 6 documenta la navegación y las pruebas verifican texto de PDF, QR decodificable y pantallas administrativas conectadas a servicios reales. Se pueden añadir capturas reales de consola y documentos de demostración antes de entregar.
 
-## 13. Problemas conocidos y limitaciones
+## 12. Problemas conocidos y limitaciones
 
 - La supresión con historial es lógica. No se borran individualmente líneas de una factura emitida ni se traslada la identidad de relaciones históricas.
 - No hay autenticación ni roles; seleccionar el ID del profesor no acredita su identidad.
@@ -266,18 +281,8 @@ No se han incorporado capturas gráficas. El menú de la sección 7 documenta la
 
 La auditoría acredita los escenarios revisados y ejecutados, no una garantía universal de ausencia de defectos ni el cierre de las mejoras futuras.
 
-## 14. Futuras mejoras
+## 13. Futuras mejoras
 
 Incorporar autenticación/roles, calendario académico, vigencias de tarifas y cargos recurrentes. Añadir DTO y exportación de reportes, paginación de consultas, coordinación de archivos entre procesos y comprobación de integridad de PDF. Definir backups, recuperación, pruebas de carga y revisión de dependencias antes de uso institucional.
 
 Conservar los límites transaccionales y ampliar las pruebas para cada nuevo flujo. Para entrega académica, completar metadatos, verificar repositorio privado, agregar al instructor con lectura y registrar el SHA completo del commit final en `main` o `master`; usuario del instructor y plazo aún no han sido suministrados.
-
-## 15. Licencia
-
-Pendiente de definición por los titulares. No existe un archivo `LICENSE` ni este README concede una licencia propia. Las bibliotecas tienen sus condiciones correspondientes; Shade configura transformadores de avisos y licencias, sin sustituir la decisión sobre el código del equipo.
-
-## 16. Contacto
-
-Autor: Dilan Fonseca. Correo de contacto: [dfonsecatellez@gmail.com](mailto:dfonsecatellez@gmail.com). Repositorio: [Little-Horizons-ERP](https://github.com/Dafcgg/Little-Horizons-ERP).
-
-Los correos `example.invalid`, NIT y valores DEMO utilizados por la aplicación son de demostración y no deben presentarse como datos reales del colegio.

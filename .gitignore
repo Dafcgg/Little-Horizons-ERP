@@ -1,7 +1,24 @@
+# Build output and generated runtime files
 /target/
 /invoices/
 /error_log.txt*
+
+# Local credentials and editor settings
 .env
+.env.*
+!.env.example
 .idea/
-/docs/
+.vscode/
 *.iml
+.DS_Store
+Thumbs.db
+
+# Keep required database scripts; exclude local planning and audit artifacts
+/docs/*
+!/docs/database.sql
+!/docs/migrations/
+/docs/migrations/*
+!/docs/migrations/002_complete_crud.sql
+
+# Historical repository simulation helper
+/scripts/prepare-delivery.sh
