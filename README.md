@@ -10,19 +10,13 @@ Centraliza gestión académica, actividades extracurriculares, finanzas y prést
 
 Incluye CRUD de las 26 entidades del esquema, pantallas de edición/inactivación y facturas PDF con CUFE, QR y resolución simulados. Las bajas conservan el historial cuando corresponde. Corregir un documento financiero anula el original y crea un reemplazo trazable.
 
-La auditoría final aprobó **62 pruebas sin fallos, errores ni omisiones**. Se revisaron A01–A12 y se corrigió una regresión de validación nula en edición de estudiantes. Véanse [bitácora](docs/implementacion_log.md), [matriz CRUD](docs/crud_matrix.md) y [aceptación](docs/acceptance.md).
-
-La [simulación de entrega final](docs/entrega_final.md) contiene el checklist actualizado y el procedimiento de ocho commits atómicos. La URL privada y el SHA de la entrega real se obtienen al ejecutar ese procedimiento con los datos del equipo.
-
 ## 3. Autores
 
-| Información | Estado |
+| Información | Datos |
 | --- | --- |
-| Nombre completo de cada integrante | Pendiente de suministrar. |
-| Correo electrónico | Pendiente de suministrar. |
-| Contacto adicional | Pendiente de suministrar. |
-
-La autoría no se deduce del usuario de la máquina ni se completa con identidades ficticias.
+| Nombre completo | Dilan Fonseca |
+| Correo electrónico | dfonsecatellez@gmail.com |
+| Perfil de GitHub | [Dafcgg](https://github.com/Dafcgg) |
 
 ## 4. Tecnologías utilizadas
 
@@ -57,6 +51,8 @@ Entorno auditado: Java 17.0.7, Maven 3.6.3 y MySQL de la imagen `mysql:8.0`. Eje
 
 ### 6.1. Instalación nueva
 
+La carpeta `docs/` se conserva localmente y está excluida del repositorio mediante `.gitignore`. Para instalar la base o ejecutar las pruebas de integración desde un clon, solicitar al autor `database.sql` y, si corresponde, la migración `002_complete_crud.sql`, y colocarlos en las rutas indicadas a continuación.
+
 Desde la raíz, sobre un servidor sin la base del proyecto:
 
 ```bash
@@ -77,7 +73,7 @@ Aplicar **una sola vez**, únicamente a la base de la fase previa al CRUD comple
 mysql -u root -p --default-character-set=utf8mb4 < docs/migrations/002_complete_crud.sql
 ```
 
-Añade actividad, estados de anulación, motivos y vínculo al pago corregido sin eliminar datos. No aplicar sobre una instalación nueva del script completo ni repetirla. La migración se verificó durante el cierre CRUD. Véase [database-changes.md](docs/database-changes.md).
+Añade actividad, estados de anulación, motivos y vínculo al pago corregido sin eliminar datos. No aplicar sobre una instalación nueva del script completo ni repetirla. La migración se verificó durante el cierre CRUD. El detalle se conserva localmente en `docs/database-changes.md`.
 
 ### 6.3. Cuenta y credenciales
 
@@ -121,7 +117,12 @@ Maven descarga Connector/J. JDBC descubre su proveedor automáticamente y Shade 
 
 ### 7.1. Obtener y abrir
 
-Clonar la URL real que suministre el equipo, abrir `pom.xml` y configurar JDK 17 en el IDE. La URL no ha sido suministrada; no se incluye una dirección ficticia.
+Clonar el repositorio, abrir `pom.xml` y configurar JDK 17 en el IDE:
+
+```bash
+git clone https://github.com/Dafcgg/Little-Horizons-ERP.git
+cd Little-Horizons-ERP
+```
 
 ### 7.2. Compilar y ejecutar
 
@@ -178,7 +179,7 @@ El flujo es vista → controlador → servicio → DAO → MySQL. No hay SQL en 
 
 La conexión pertenece al servicio. `TransactionalService` fija `READ_COMMITTED`, abre/cierra la conexión y ejecuta commit/rollback. Los DAO reciben esa conexión y no la confirman ni la cierran. `Jdbc` encapsula `PreparedStatement` y cierre de sentencias/resultados.
 
-`docs/` contiene el esquema, la migración, la bitácora, la matriz CRUD y las evidencias de aceptación. Los reportes históricos de QA conservan su alcance original; el resultado vigente está en la bitácora final.
+La documentación complementaria de `docs/` se conserva localmente y no forma parte de los archivos versionados.
 
 ## 9. Principios SOLID y patrones aplicados
 
@@ -230,7 +231,7 @@ CRUD de categorías e inventario, con baja/inactivación y reactivación cuando 
 
 Préstamos en tablas separadas para estudiantes/profesores, consulta de historial, edición de vencimiento, devolución y anulación. Las operaciones bloquean la misma fila de recurso, evitando préstamos simultáneos entre ambas tablas. Devolver o anular libera disponibilidad y conserva el registro. Los préstamos cerrados no se editan; vencidos se detectan por fecha esperada y ausencia de devolución.
 
-La [matriz CRUD](docs/crud_matrix.md) detalla las operaciones de las 26 tablas, incluidas relaciones y líneas de factura conservadas como parte del documento histórico.
+La matriz local `docs/crud_matrix.md` detalla las operaciones de las 26 tablas, incluidas relaciones y líneas de factura conservadas como parte del documento histórico.
 
 ## 11. Manejo de errores y logs
 
@@ -244,7 +245,7 @@ No existe transacción distribuida entre MySQL y archivos. El PDF utiliza tempor
 
 La generación se serializa dentro de la JVM y verifica el estado de negocio antes de marcar Generada. Una regeneración fallida puede conservar un estado previamente Generada; no constituye una comprobación de integridad física del archivo. Varias JVM compartiendo directorio necesitan coordinación adicional.
 
-`.gitignore` excluye credenciales locales, logs, compilados y facturas generadas.
+`.gitignore` excluye documentación local (`docs/`), credenciales locales, logs, compilados y facturas generadas.
 
 ## 12. Capturas de pantalla
 
@@ -261,7 +262,7 @@ No se han incorporado capturas gráficas. El menú de la sección 7 documenta la
 - El servicio produce una línea por abono; esquema/renderizador permiten varias. Hay recuperación, pero no atomicidad única entre MySQL y archivos. Los consecutivos pueden tener huecos por rollback.
 - Docker utiliza `mysql:8.0` sin fijar digest. No se certifican rendimiento institucional, recuperación de backups ni seguridad de todas las dependencias.
 - Shade puede informar metadatos duplicados; la compilación y arranque auditados son correctos.
-- Autoría, licencia, contacto y entrega privada en GitHub siguen pendientes de datos reales. No existe todavía un commit final verificable.
+- La licencia del código sigue pendiente de definición.
 
 La auditoría acredita los escenarios revisados y ejecutados, no una garantía universal de ausencia de defectos ni el cierre de las mejoras futuras.
 
@@ -277,4 +278,6 @@ Pendiente de definición por los titulares. No existe un archivo `LICENSE` ni es
 
 ## 16. Contacto
 
-Pendiente incorporar correo y contacto del equipo, identidad del trainer/instructor y URL privada de entrega. Los correos `example.invalid`, NIT y valores DEMO son de demostración y no deben presentarse como datos reales del colegio.
+Autor: Dilan Fonseca. Correo de contacto: [dfonsecatellez@gmail.com](mailto:dfonsecatellez@gmail.com). Repositorio: [Little-Horizons-ERP](https://github.com/Dafcgg/Little-Horizons-ERP).
+
+Los correos `example.invalid`, NIT y valores DEMO utilizados por la aplicación son de demostración y no deben presentarse como datos reales del colegio.
