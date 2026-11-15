@@ -82,7 +82,21 @@ public final class ResourceService extends TransactionalService {
   }
 
   public List<Loan> overdue() {
-    return transaction(c -> dao.overdue(c, LocalDate.now()));
+    LocalDate today = LocalDate.now();
+    return transaction(
+        c -> {
+          List<LoanEntry> loans = new ArrayList<>();
+          for (BorrowerType type : BorrowerType.values()) loans.addAll(dao.loans(c, type));
+          return loans.stream()
+              .filter(loan -> loan.returned() == null)
+              .filter(loan -> Set.of("Activo", "Vencido").contains(loan.status()))
+              .filter(loan -> loan.due().isBefore(today))
+              .map(
+                  loan ->
+                      new Loan(
+                          loan.id(), loan.resourceId(), loan.borrowerId(), loan.type(), loan.due()))
+              .toList();
+        });
   }
 
   public SchoolResource resource(long id) {

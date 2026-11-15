@@ -219,7 +219,13 @@ public final class AcademicService extends TransactionalService {
     require(
         start != null && end != null && !start.isAfter(end) && threshold >= 0,
         "Rango o umbral inválido.");
-    return transaction(c -> dao.absenceReport(c, start, end, threshold));
+    return transaction(c -> dao.absenceCounts(c, start, end)).stream()
+        .filter(summary -> summary.absentClasses() > threshold)
+        .map(
+            summary ->
+                "Estudiante %d: %d clases ausentes acumuladas"
+                    .formatted(summary.studentId(), summary.absentClasses()))
+        .toList();
   }
 
   public Teacher teacher(long id) {

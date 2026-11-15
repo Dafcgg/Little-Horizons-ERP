@@ -2,6 +2,12 @@
 /target/
 /invoices/
 /error_log.txt*
+*.class
+error_log.txt
+*.log
+invoices/*.pdf
+facturas/*.pdf
+*.tmp
 
 # Local credentials and editor settings
 .env

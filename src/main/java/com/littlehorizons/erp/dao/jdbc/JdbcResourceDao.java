@@ -20,8 +20,10 @@ public final class JdbcResourceDao implements ResourceDao {
   public long create(Connection c, SchoolResource r) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO recursos(codigo_recurso,nombre_recurso,id_categoria,ubicacion_fisica)"
-            + " VALUES(?,?,?,?)",
+        """
+        INSERT INTO recursos(codigo_recurso,nombre_recurso,id_categoria,ubicacion_fisica)
+        VALUES(?,?,?,?)
+        """,
         r.code(),
         r.name(),
         r.categoryId(),
@@ -42,11 +44,6 @@ public final class JdbcResourceDao implements ResourceDao {
     Jdbc.update(c, "UPDATE recursos SET estado_recurso=? WHERE id_recurso=?", status, id);
   }
 
-  // Table and borrower column are selected exclusively from a closed enum, never from user text.
-  private String table(BorrowerType type) {
-    return type.databaseValue();
-  }
-
   private String borrower(BorrowerType type) {
     return type == BorrowerType.STUDENT ? "id_estudiante" : "id_profesor";
   }
@@ -54,17 +51,20 @@ public final class JdbcResourceDao implements ResourceDao {
   public long createLoan(
       Connection c, long resource, long borrower, BorrowerType type, LocalDate date, LocalDate due)
       throws SQLException {
-    return Jdbc.insert(
-        c,
-        "INSERT INTO "
-            + table(type)
-            + "(id_recurso,"
-            + borrower(type)
-            + ",fecha_prestamo,fecha_devolucion_esperada) VALUES(?,?,?,?)",
-        resource,
-        borrower,
-        date,
-        due);
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              INSERT INTO prestamos_estudiante
+              (id_recurso,id_estudiante,fecha_prestamo,fecha_devolucion_esperada) VALUES(?,?,?,?)
+              """;
+          case TEACHER ->
+              """
+              INSERT INTO prestamos_profesor
+              (id_recurso,id_profesor,fecha_prestamo,fecha_devolucion_esperada) VALUES(?,?,?,?)
+              """;
+        };
+    return Jdbc.insert(c, sql, resource, borrower, date, due);
   }
 
   private Loan loan(ResultSet r, BorrowerType type) throws SQLException {
@@ -77,59 +77,93 @@ public final class JdbcResourceDao implements ResourceDao {
   }
 
   public Optional<Loan> findLoan(Connection c, long id, BorrowerType type) throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM "
-                + table(type)
-                + " WHERE id_prestamo=? AND fecha_devolucion_real IS NULL",
-            r -> loan(r, type),
-            id)
-        .stream()
-        .findFirst();
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              SELECT * FROM prestamos_estudiante
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido')
+              """;
+          case TEACHER ->
+              """
+              SELECT * FROM prestamos_profesor
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido')
+              """;
+        };
+    return Jdbc.query(c, sql, r -> loan(r, type), id).stream().findFirst();
   }
 
   public Optional<Loan> lockLoan(Connection c, long id, BorrowerType type) throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM "
-                + table(type)
-                + " WHERE id_prestamo=? AND fecha_devolucion_real IS NULL FOR UPDATE",
-            r -> loan(r, type),
-            id)
-        .stream()
-        .findFirst();
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              SELECT * FROM prestamos_estudiante
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido') FOR UPDATE
+              """;
+          case TEACHER ->
+              """
+              SELECT * FROM prestamos_profesor
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido') FOR UPDATE
+              """;
+        };
+    return Jdbc.query(c, sql, r -> loan(r, type), id).stream().findFirst();
   }
 
   public void returnLoan(Connection c, long id, BorrowerType type, LocalDate date)
       throws SQLException {
-    Jdbc.update(
-        c,
-        "UPDATE "
-            + table(type)
-            + " SET estado_prestamo='Devuelto',fecha_devolucion_real=? WHERE id_prestamo=?",
-        date,
-        id);
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              UPDATE prestamos_estudiante SET estado_prestamo='Devuelto',fecha_devolucion_real=?
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido')
+              """;
+          case TEACHER ->
+              """
+              UPDATE prestamos_profesor SET estado_prestamo='Devuelto',fecha_devolucion_real=?
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              AND estado_prestamo IN ('Activo','Vencido')
+              """;
+        };
+    Jdbc.update(c, sql, date, id);
   }
 
   public List<Loan> overdue(Connection c, LocalDate date) throws SQLException {
     List<Loan> rows = new ArrayList<>();
-    for (BorrowerType type : BorrowerType.values())
-      rows.addAll(
-          Jdbc.query(
-              c,
-              "SELECT * FROM "
-                  + table(type)
-                  + " WHERE fecha_devolucion_real IS NULL AND fecha_devolucion_esperada<?",
-              r -> loan(r, type),
-              date));
+    for (BorrowerType type : BorrowerType.values()) {
+      String sql =
+          switch (type) {
+            case STUDENT ->
+                """
+                SELECT * FROM prestamos_estudiante
+                WHERE fecha_devolucion_real IS NULL AND fecha_devolucion_esperada<?
+                AND estado_prestamo IN ('Activo','Vencido')
+                """;
+            case TEACHER ->
+                """
+                SELECT * FROM prestamos_profesor
+                WHERE fecha_devolucion_real IS NULL AND fecha_devolucion_esperada<?
+                AND estado_prestamo IN ('Activo','Vencido')
+                """;
+          };
+      rows.addAll(Jdbc.query(c, sql, r -> loan(r, type), date));
+    }
     return rows;
   }
 
   public int updateResource(Connection c, SchoolResource r) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE recursos SET codigo_recurso=?,nombre_recurso=?,id_categoria=?,ubicacion_fisica=?"
-            + " WHERE id_recurso=?",
+        """
+        UPDATE recursos SET codigo_recurso=?,nombre_recurso=?,id_categoria=?,ubicacion_fisica=?
+        WHERE id_recurso=?
+        """,
         r.code(),
         r.name(),
         r.categoryId(),
@@ -140,81 +174,115 @@ public final class JdbcResourceDao implements ResourceDao {
   public boolean activeCategory(Connection c, long category) throws SQLException {
     return !Jdbc.query(
             c,
-            "SELECT id_categoria FROM categorias_recurso WHERE id_categoria=? AND esta_activo=TRUE"
-                + " FOR UPDATE",
+            """
+            SELECT id_categoria FROM categorias_recurso
+            WHERE id_categoria=? AND esta_activo=TRUE FOR UPDATE
+            """,
             r -> r.getLong(1),
             category)
         .isEmpty();
   }
 
   public boolean activeBorrower(Connection c, long id, BorrowerType type) throws SQLException {
-    String entity = type == BorrowerType.STUDENT ? "estudiantes" : "profesores";
-    return !Jdbc.query(
-            c,
-            "SELECT "
-                + borrower(type)
-                + " FROM "
-                + entity
-                + " WHERE "
-                + borrower(type)
-                + "=? AND estado='Activo' FOR UPDATE",
-            r -> r.getLong(1),
-            id)
-        .isEmpty();
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              SELECT id_estudiante FROM estudiantes
+              WHERE id_estudiante=? AND estado='Activo' FOR UPDATE
+              """;
+          case TEACHER ->
+              """
+              SELECT id_profesor FROM profesores
+              WHERE id_profesor=? AND estado='Activo' FOR UPDATE
+              """;
+        };
+    return !Jdbc.query(c, sql, r -> r.getLong(1), id).isEmpty();
   }
 
-  private LoanEntry entry(java.sql.ResultSet r, BorrowerType type) throws SQLException {
+  private LoanEntry entry(ResultSet r, BorrowerType type) throws SQLException {
     java.sql.Date returned = r.getDate("fecha_devolucion_real");
+    LocalDate due = r.getDate("fecha_devolucion_esperada").toLocalDate();
+    String status = r.getString("estado_prestamo");
+    if ("Activo".equals(status) && due.isBefore(LocalDate.now())) status = "Vencido";
     return new LoanEntry(
         r.getLong("id_prestamo"),
         r.getLong("id_recurso"),
         r.getLong(borrower(type)),
         type,
         r.getDate("fecha_prestamo").toLocalDate(),
-        r.getDate("fecha_devolucion_esperada").toLocalDate(),
+        due,
         returned == null ? null : returned.toLocalDate(),
-        r.getString("estado_prestamo"));
+        status);
   }
 
   public List<LoanEntry> loans(Connection c, BorrowerType type) throws SQLException {
-    return Jdbc.query(
-        c, "SELECT * FROM " + table(type) + " ORDER BY id_prestamo", r -> entry(r, type));
+    String sql =
+        switch (type) {
+          case STUDENT -> "SELECT * FROM prestamos_estudiante ORDER BY id_prestamo";
+          case TEACHER -> "SELECT * FROM prestamos_profesor ORDER BY id_prestamo";
+        };
+    return Jdbc.query(c, sql, r -> entry(r, type));
   }
 
   public Optional<LoanEntry> loanEntry(Connection c, long id, BorrowerType type, boolean lock)
       throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM " + table(type) + " WHERE id_prestamo=?" + (lock ? " FOR UPDATE" : ""),
-            r -> entry(r, type),
-            id)
-        .stream()
-        .findFirst();
+    String sql;
+    if (lock) {
+      sql =
+          switch (type) {
+            case STUDENT -> "SELECT * FROM prestamos_estudiante WHERE id_prestamo=? FOR UPDATE";
+            case TEACHER -> "SELECT * FROM prestamos_profesor WHERE id_prestamo=? FOR UPDATE";
+          };
+    } else {
+      sql =
+          switch (type) {
+            case STUDENT -> "SELECT * FROM prestamos_estudiante WHERE id_prestamo=?";
+            case TEACHER -> "SELECT * FROM prestamos_profesor WHERE id_prestamo=?";
+          };
+    }
+    return Jdbc.query(c, sql, r -> entry(r, type), id).stream().findFirst();
   }
 
   public int updateDueDate(Connection c, long id, BorrowerType type, LocalDate due)
       throws SQLException {
-    return Jdbc.update(
-        c,
-        "UPDATE "
-            + table(type)
-            + " SET fecha_devolucion_esperada=?,estado_prestamo=CASE WHEN ?<CURRENT_DATE THEN"
-            + " 'Vencido' ELSE 'Activo' END WHERE id_prestamo=? AND fecha_devolucion_real IS NULL",
-        due,
-        due,
-        id);
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              UPDATE prestamos_estudiante
+              SET fecha_devolucion_esperada=?,estado_prestamo=CASE WHEN ?<CURRENT_DATE
+              THEN 'Vencido' ELSE 'Activo' END
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              """;
+          case TEACHER ->
+              """
+              UPDATE prestamos_profesor
+              SET fecha_devolucion_esperada=?,estado_prestamo=CASE WHEN ?<CURRENT_DATE
+              THEN 'Vencido' ELSE 'Activo' END
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              """;
+        };
+    return Jdbc.update(c, sql, due, due, id);
   }
 
   public int cancelLoan(Connection c, long id, BorrowerType type, LocalDate date, String reason)
       throws SQLException {
-    return Jdbc.update(
-        c,
-        "UPDATE "
-            + table(type)
-            + " SET estado_prestamo='Anulado',fecha_devolucion_real=?,observaciones=? WHERE"
-            + " id_prestamo=? AND fecha_devolucion_real IS NULL",
-        date,
-        reason,
-        id);
+    String sql =
+        switch (type) {
+          case STUDENT ->
+              """
+              UPDATE prestamos_estudiante
+              SET estado_prestamo='Anulado',fecha_devolucion_real=?,observaciones=?
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              """;
+          case TEACHER ->
+              """
+              UPDATE prestamos_profesor
+              SET estado_prestamo='Anulado',fecha_devolucion_real=?,observaciones=?
+              WHERE id_prestamo=? AND fecha_devolucion_real IS NULL
+              """;
+        };
+    return Jdbc.update(c, sql, date, reason, id);
   }
 }

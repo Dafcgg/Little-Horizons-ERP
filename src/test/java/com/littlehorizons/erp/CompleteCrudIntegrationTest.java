@@ -636,13 +636,15 @@ class CompleteCrudIntegrationTest {
                 bytes))
         .run();
     assertEquals("UITeacher", academics.teacher(teacher).firstName());
+    String clubName = "UIClub " + unique();
     long club = activities.createClub(new Club(0, "Test " + unique(), teacher, 3));
     new ActivityAdministrationController(
             activities,
             console(
-                String.join("\n", "2", String.valueOf(club), "UIClub", "", "", "", "0", ""), bytes))
+                String.join("\n", "2", String.valueOf(club), clubName, "", "", "", "", "0", ""),
+                bytes))
         .run();
-    assertEquals("UIClub", activities.club(club).name());
+    assertEquals(clubName, activities.club(club).name());
     var finance = finance();
     long concept = finance.createConcept(unique(), "Test", money("100.00"), BigDecimal.ZERO);
     new FinanceAdministrationController(
@@ -662,15 +664,16 @@ class CompleteCrudIntegrationTest {
                 bytes))
         .run();
     assertEquals("UIResource", resources.resource(resource).name());
+    String gradeName = "UIGrade " + unique();
     long grade =
         catalogs.create(CatalogType.GRADE, new CatalogEntry(0, "Test " + unique(), 2, true));
     new CatalogController(
             catalogs,
             console(
-                String.join("\n", "1", "4", String.valueOf(grade), "UIGrade", "", "", "0", ""),
+                String.join("\n", "1", "4", String.valueOf(grade), gradeName, "", "", "0", ""),
                 bytes))
         .run();
-    assertEquals("UIGrade", catalogs.get(CatalogType.GRADE, grade).name());
+    assertEquals(gradeName, catalogs.get(CatalogType.GRADE, grade).name());
   }
 
   @Test

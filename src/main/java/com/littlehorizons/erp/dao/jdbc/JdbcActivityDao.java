@@ -9,8 +9,12 @@ public final class JdbcActivityDao implements ActivityDao {
   public long createClub(Connection c, Club club) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO clubes(nombre_club,id_profesor_supervisor,capacidad_maxima) VALUES(?,?,?)",
+        """
+        INSERT INTO clubes(nombre_club,descripcion,id_profesor_supervisor,capacidad_maxima)
+        VALUES(?,?,?,?)
+        """,
         club.name(),
+        club.description(),
         club.teacherId(),
         club.capacity());
   }
@@ -23,6 +27,7 @@ public final class JdbcActivityDao implements ActivityDao {
     return new Club(
         r.getLong("id_club"),
         r.getString("nombre_club"),
+        r.getString("descripcion"),
         r.getLong("id_profesor_supervisor"),
         r.getInt("capacidad_maxima"),
         r.getBoolean("esta_activo"));
@@ -49,8 +54,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public boolean isMember(Connection c, long club, long student) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM membresias_club WHERE id_club=? AND id_estudiante=? AND"
-                + " estado_membresia='Activa'",
+            """
+            SELECT COUNT(*) FROM membresias_club
+            WHERE id_club=? AND id_estudiante=? AND estado_membresia='Activa'
+            """,
             club,
             student)
         > 0;
@@ -67,8 +74,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public int withdraw(Connection c, long club, long student) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE membresias_club SET estado_membresia='Retirada',fecha_retiro=CURRENT_DATE WHERE"
-            + " id_club=? AND id_estudiante=? AND estado_membresia='Activa'",
+        """
+        UPDATE membresias_club SET estado_membresia='Retirada',fecha_retiro=CURRENT_DATE
+        WHERE id_club=? AND id_estudiante=? AND estado_membresia='Activa'
+        """,
         club,
         student);
   }
@@ -76,33 +85,39 @@ public final class JdbcActivityDao implements ActivityDao {
   public long createEvent(Connection c, SchoolEvent event) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO eventos(nombre_evento,fecha_evento,tipo_evento,tiene_competencia)"
-            + " VALUES(?,?,?,?)",
+        """
+        INSERT INTO eventos(nombre_evento,descripcion,fecha_evento,tipo_evento,tiene_competencia)
+        VALUES(?,?,?,?,?)
+        """,
         event.name(),
+        event.description(),
         event.date(),
         event.type(),
         event.competitive());
   }
 
   public List<SchoolEvent> events(Connection c) throws SQLException {
-    return Jdbc.query(
-        c,
-        "SELECT * FROM eventos ORDER BY fecha_evento",
-        r ->
-            new SchoolEvent(
-                r.getLong("id_evento"),
-                r.getString("nombre_evento"),
-                r.getDate("fecha_evento").toLocalDate(),
-                r.getString("tipo_evento"),
-                r.getBoolean("tiene_competencia"),
-                r.getBoolean("esta_activo")));
+    return Jdbc.query(c, "SELECT * FROM eventos ORDER BY fecha_evento", this::event);
+  }
+
+  private SchoolEvent event(ResultSet r) throws SQLException {
+    return new SchoolEvent(
+        r.getLong("id_evento"),
+        r.getString("nombre_evento"),
+        r.getString("descripcion"),
+        r.getDate("fecha_evento").toLocalDate(),
+        r.getString("tipo_evento"),
+        r.getBoolean("tiene_competencia"),
+        r.getBoolean("esta_activo"));
   }
 
   public Optional<Boolean> lockEvent(Connection c, long event) throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT tiene_competencia FROM eventos WHERE id_evento=? AND esta_activo=TRUE FOR"
-                + " UPDATE",
+            """
+            SELECT tiene_competencia FROM eventos
+            WHERE id_evento=? AND esta_activo=TRUE FOR UPDATE
+            """,
             r -> r.getBoolean(1),
             event)
         .stream()
@@ -120,18 +135,22 @@ public final class JdbcActivityDao implements ActivityDao {
   }
 
   public Optional<Club> club(Connection c, long id, boolean lock) throws SQLException {
-    return Jdbc.query(
-            c, "SELECT * FROM clubes WHERE id_club=?" + (lock ? " FOR UPDATE" : ""), this::club, id)
-        .stream()
-        .findFirst();
+    String sql;
+    if (lock) sql = "SELECT * FROM clubes WHERE id_club=? FOR UPDATE";
+    else sql = "SELECT * FROM clubes WHERE id_club=?";
+    return Jdbc.query(c, sql, this::club, id).stream().findFirst();
   }
 
   public int updateClub(Connection c, Club v) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE clubes SET nombre_club=?,id_profesor_supervisor=?,capacidad_maxima=?,esta_activo=?"
-            + " WHERE id_club=?",
+        """
+        UPDATE clubes SET nombre_club=?,descripcion=?,id_profesor_supervisor=?,
+        capacidad_maxima=?,esta_activo=?
+        WHERE id_club=?
+        """,
         v.name(),
+        v.description(),
         v.teacherId(),
         v.capacity(),
         v.active(),
@@ -141,8 +160,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public void retireMembers(Connection c, long club) throws SQLException {
     Jdbc.update(
         c,
-        "UPDATE membresias_club SET estado_membresia='Retirada',fecha_retiro=CURRENT_DATE WHERE"
-            + " id_club=? AND estado_membresia='Activa'",
+        """
+        UPDATE membresias_club SET estado_membresia='Retirada',fecha_retiro=CURRENT_DATE
+        WHERE id_club=? AND estado_membresia='Activa'
+        """,
         club);
   }
 
@@ -158,8 +179,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public boolean activeStudent(Connection c, long student) throws SQLException {
     return !Jdbc.query(
             c,
-            "SELECT id_estudiante FROM estudiantes WHERE id_estudiante=? AND estado='Activo' FOR"
-                + " UPDATE",
+            """
+            SELECT id_estudiante FROM estudiantes
+            WHERE id_estudiante=? AND estado='Activo' FOR UPDATE
+            """,
             r -> r.getLong(1),
             student)
         .isEmpty();
@@ -192,8 +215,10 @@ public final class JdbcActivityDao implements ActivityDao {
       throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE membresias_club SET fecha_ingreso=?,estado_membresia=?,fecha_retiro=CASE WHEN"
-            + " ?='Retirada' THEN CURRENT_DATE ELSE NULL END WHERE id_membresia=?",
+        """
+        UPDATE membresias_club SET fecha_ingreso=?,estado_membresia=?,fecha_retiro=CASE
+        WHEN ?='Retirada' THEN CURRENT_DATE ELSE NULL END WHERE id_membresia=?
+        """,
         joined,
         status,
         status,
@@ -201,29 +226,22 @@ public final class JdbcActivityDao implements ActivityDao {
   }
 
   public Optional<SchoolEvent> event(Connection c, long id, boolean lock) throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM eventos WHERE id_evento=?" + (lock ? " FOR UPDATE" : ""),
-            r ->
-                new SchoolEvent(
-                    r.getLong("id_evento"),
-                    r.getString("nombre_evento"),
-                    r.getDate("fecha_evento").toLocalDate(),
-                    r.getString("tipo_evento"),
-                    r.getBoolean("tiene_competencia"),
-                    r.getBoolean("esta_activo")),
-            id)
-        .stream()
-        .findFirst();
+    String sql;
+    if (lock) sql = "SELECT * FROM eventos WHERE id_evento=? FOR UPDATE";
+    else sql = "SELECT * FROM eventos WHERE id_evento=?";
+    return Jdbc.query(c, sql, this::event, id).stream().findFirst();
   }
 
   public int updateEvent(Connection c, SchoolEvent v) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE eventos SET"
-            + " nombre_evento=?,fecha_evento=?,tipo_evento=?,tiene_competencia=?,esta_activo=?"
-            + " WHERE id_evento=?",
+        """
+        UPDATE eventos SET nombre_evento=?,descripcion=?,fecha_evento=?,tipo_evento=?,
+        tiene_competencia=?,esta_activo=?
+        WHERE id_evento=?
+        """,
         v.name(),
+        v.description(),
         v.date(),
         v.type(),
         v.competitive(),
@@ -234,8 +252,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public boolean hasPositions(Connection c, long event) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM participantes_evento WHERE id_evento=? AND posicion_obtenida IS"
-                + " NOT NULL AND posicion_obtenida<>''",
+            """
+            SELECT COUNT(*) FROM participantes_evento
+            WHERE id_evento=? AND posicion_obtenida IS NOT NULL AND posicion_obtenida<>''
+            """,
             event)
         > 0;
   }
@@ -243,8 +263,10 @@ public final class JdbcActivityDao implements ActivityDao {
   public List<EventParticipation> participants(Connection c, long event) throws SQLException {
     return Jdbc.query(
         c,
-        "SELECT id_evento,id_estudiante,posicion_obtenida FROM participantes_evento WHERE"
-            + " id_evento=? ORDER BY id_estudiante",
+        """
+        SELECT id_evento,id_estudiante,posicion_obtenida FROM participantes_evento
+        WHERE id_evento=? ORDER BY id_estudiante
+        """,
         r -> new EventParticipation(r.getLong(1), r.getLong(2), r.getString(3)),
         event);
   }

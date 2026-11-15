@@ -20,7 +20,7 @@ public final class Main {
       System.err.println("No se pudo abrir error_log.txt: " + error.getMessage());
       return;
     }
-    var connections = new DatabaseConnection();
+    var connections = DatabaseConnection.getInstance();
     var view = new ConsoleView(System.in, System.out);
     var studentService = new StudentService(connections, new JdbcStudentDao());
     var academicService = new AcademicService(connections, new JdbcAcademicDao());

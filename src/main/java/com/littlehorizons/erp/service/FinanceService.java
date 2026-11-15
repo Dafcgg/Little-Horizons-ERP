@@ -216,11 +216,19 @@ public final class FinanceService extends TransactionalService {
       try {
         transaction(
             c -> {
-              dao.pdfStatus(c, invoiceId, "Fallida", null);
+              require(
+                  dao.pdfStatus(c, invoiceId, "Fallida", null) > 0,
+                  "No se actualizó el estado de la factura " + invoiceId + ".");
               return null;
             });
       } catch (RuntimeException statusError) {
         AppLogger.error("Invoice failure status could not be stored", statusError);
+        throw new BusinessException(
+            "Operación financiera confirmada, pero no se pudo guardar el estado del PDF."
+                + " Revise error_log.txt y regenere la factura "
+                + invoiceId
+                + ". No registre otro pago.",
+            statusError);
       }
       return new PaymentResult(
           payment,
@@ -246,7 +254,11 @@ public final class FinanceService extends TransactionalService {
   }
 
   public List<Balance> overdue() {
-    return transaction(c -> dao.balances(c, LocalDate.now().minusMonths(1)));
+    LocalDate cutoff = LocalDate.now().minusMonths(1);
+    return transaction(c -> dao.balances(c, cutoff)).stream()
+        .filter(balance -> balance.dueDate().isBefore(cutoff))
+        .filter(balance -> balance.balance().signum() > 0)
+        .toList();
   }
 
   public List<String> history(long id, boolean guardian) {

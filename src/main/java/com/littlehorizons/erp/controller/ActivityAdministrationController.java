@@ -74,6 +74,7 @@ public final class ActivityAdministrationController {
         new Club(
             c.id(),
             view.edit("Nombre", c.name()),
+            view.edit("Descripción", c.description()),
             view.editId("ID profesor", c.teacherId()),
             view.editInteger("Cupo", c.capacity(), 1, 10000),
             view.editFlag("¿Activo?", c.active())));
@@ -87,6 +88,7 @@ public final class ActivityAdministrationController {
         new SchoolEvent(
             e.id(),
             view.edit("Nombre", e.name()),
+            view.edit("Descripción", e.description()),
             view.editDate("Fecha", e.date()),
             view.option(
                 "Tipo", List.of("Académico", "Cultural", "Deportivo", "Social", "Científico")),

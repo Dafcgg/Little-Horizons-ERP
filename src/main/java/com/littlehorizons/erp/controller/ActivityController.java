@@ -28,6 +28,7 @@ public final class ActivityController {
                             new Club(
                                 0,
                                 view.required("Nombre"),
+                                view.required("Descripción"),
                                 view.id("ID profesor responsable"),
                                 view.integer("Cupo", 1, 10000))))),
         new Action(
@@ -52,6 +53,7 @@ public final class ActivityController {
                             new SchoolEvent(
                                 0,
                                 view.required("Nombre"),
+                                view.required("Descripción"),
                                 view.date("Fecha"),
                                 view.required(
                                     "Tipo: Académico, Cultural, Deportivo, Social o Científico"),

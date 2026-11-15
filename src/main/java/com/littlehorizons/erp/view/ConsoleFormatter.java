@@ -169,6 +169,8 @@ final class ConsoleFormatter {
           + c.id()
           + " | "
           + c.name()
+          + " | Descripción: "
+          + java.util.Objects.toString(c.description(), "")
           + " | Profesor: "
           + c.teacherId()
           + " | Cupo: "
@@ -191,6 +193,8 @@ final class ConsoleFormatter {
           + e.id()
           + " | "
           + e.name()
+          + " | Descripción: "
+          + java.util.Objects.toString(e.description(), "")
           + " | Fecha: "
           + e.date()
           + " | Tipo: "

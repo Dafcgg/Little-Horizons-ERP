@@ -70,6 +70,9 @@ public interface AcademicDao {
   List<String> absenceReport(Connection c, LocalDate start, LocalDate end, int threshold)
       throws SQLException;
 
+  List<AbsenceSummary> absenceCounts(Connection c, LocalDate start, LocalDate end)
+      throws SQLException;
+
   BigDecimal courseAverage(
       Connection c, long subject, int year, AcademicPeriod period, String section)
       throws SQLException;
