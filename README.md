@@ -163,7 +163,7 @@ Verificación completa del 16 de noviembre de 2026: **86 pruebas aprobadas (80 a
 
 También se importó el SQL de la versión anterior en una segunda base aislada y se aplicó `003_ascii_academic_year.sql`: los checksums de las seis tablas afectadas se conservaron. Sobre esa base migrada, `mvn test` volvió a aprobar las **86 pruebas, sin fallos, errores ni omisiones**.
 
-Verificación completa del 17 de noviembre de 2026: **2.480 pruebas aprobadas**. sin fallos. errores ni omisiones. `mvn clean verify` terminó con `BUILD SUCCESS` usando Java 17 y MySQL 8.0.46 aislado.
+El 17 de noviembre de 2026 se aprobaron **2.480 pruebas**, sin fallos, errores ni omisiones. `mvn clean verify` terminó con `BUILD SUCCESS` usando Java 17 y MySQL 8.0.46 aislado.
 
 ### 7.4 Ejecutar JAR
 
