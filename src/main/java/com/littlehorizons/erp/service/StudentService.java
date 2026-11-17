@@ -16,7 +16,7 @@ public final class StudentService extends TransactionalService {
 
   public long register(Student student, long guardianId, String relationship) {
     validate(student);
-    text(relationship, "Parentesco");
+    text(relationship, "Parentesco", 50);
     return transaction(
         c -> {
           require(
@@ -36,7 +36,7 @@ public final class StudentService extends TransactionalService {
   public long registerWithGuardian(Student student, Guardian guardian, String relationship) {
     validate(student);
     validate(guardian);
-    text(relationship, "Parentesco");
+    text(relationship, "Parentesco", 50);
     return transaction(
         c -> {
           long guardianId = dao.createGuardian(c, guardian);
@@ -56,20 +56,22 @@ public final class StudentService extends TransactionalService {
 
   private void validate(Student student) {
     require(student != null, "Datos obligatorios.");
-    text(student.document(), "Documento");
-    text(student.firstName(), "Nombre");
-    text(student.lastName(), "Apellido");
+    text(student.document(), "Documento", 20);
+    text(student.firstName(), "Nombre", 100);
+    text(student.lastName(), "Apellido", 100);
+    textLength(student.address(), "Dirección", 255);
     require(
-        student.birthDate() != null && student.birthDate().isBefore(LocalDate.now()),
+        isDatabaseDate(student.birthDate()) && student.birthDate().isBefore(LocalDate.now()),
         "Fecha de nacimiento inválida.");
   }
 
   private void validate(Guardian guardian) {
     require(guardian != null, "Datos obligatorios.");
-    text(guardian.document(), "Documento");
-    text(guardian.firstName(), "Nombre");
-    text(guardian.lastName(), "Apellido");
-    text(guardian.phone(), "Teléfono");
+    text(guardian.document(), "Documento", 20);
+    text(guardian.firstName(), "Nombre", 100);
+    text(guardian.lastName(), "Apellido", 100);
+    text(guardian.phone(), "Teléfono", 20);
+    textLength(guardian.address(), "Dirección", 255);
   }
 
   public long registerGuardian(Guardian guardian) {
@@ -187,7 +189,7 @@ public final class StudentService extends TransactionalService {
 
   public void saveLink(GuardianLink link) {
     require(link != null, "Vínculo obligatorio.");
-    text(link.relationship(), "Parentesco");
+    text(link.relationship(), "Parentesco", 50);
     transaction(
         c -> {
           dao.lockStudent(c, link.studentId())

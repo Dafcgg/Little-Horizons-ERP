@@ -551,7 +551,7 @@ public final class JdbcAcademicDao implements AcademicDao {
                 r.getLong("registrado_por"),
                 r.getInt("año_academico"),
                 AcademicPeriod.valueOf(r.getString("periodo_academico")),
-                r.getDate("fecha_asistencia").toLocalDate(),
+                r.getObject("fecha_asistencia", LocalDate.class),
                 Arrays.stream(AttendanceStatus.values())
                     .filter(
                         v -> {

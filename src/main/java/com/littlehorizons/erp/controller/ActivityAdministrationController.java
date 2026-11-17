@@ -67,6 +67,11 @@ public final class ActivityAdministrationController {
             }));
   }
 
+  private String editDescription(String current) {
+    String description = view.edit("Descripción (- para borrar)", current);
+    return "-".equals(description) ? "" : description;
+  }
+
   private void editClub() {
     Club c = service.club(view.id("ID club"));
     view.show(c);
@@ -76,7 +81,8 @@ public final class ActivityAdministrationController {
             view.edit("Nombre", c.name()),
             view.editId("ID profesor", c.teacherId()),
             view.editInteger("Cupo", c.capacity(), 1, 10000),
-            view.editFlag("¿Activo?", c.active())));
+            view.editFlag("¿Activo?", c.active()),
+            editDescription(c.description())));
     view.show("Club actualizado.");
   }
 
@@ -91,7 +97,8 @@ public final class ActivityAdministrationController {
             view.option(
                 "Tipo", List.of("Académico", "Cultural", "Deportivo", "Social", "Científico")),
             view.editFlag("¿Competencia?", e.competitive()),
-            view.editFlag("¿Activo?", e.active())));
+            view.editFlag("¿Activo?", e.active()),
+            editDescription(e.description())));
     view.show("Evento actualizado.");
   }
 }

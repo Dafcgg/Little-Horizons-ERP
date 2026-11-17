@@ -16,9 +16,9 @@ public final class ResourceService extends TransactionalService {
 
   public long create(SchoolResource resource) {
     require(resource != null, "Datos obligatorios.");
-    text(resource.code(), "Código");
-    text(resource.name(), "Nombre");
-    text(resource.location(), "Ubicación");
+    text(resource.code(), "Código", 50);
+    text(resource.name(), "Nombre", 150);
+    text(resource.location(), "Ubicación", 100);
     return transaction(
         c -> {
           require(
@@ -33,7 +33,7 @@ public final class ResourceService extends TransactionalService {
 
   public long lend(long resource, long borrower, BorrowerType type, LocalDate due) {
     require(
-        type != null && due != null && !due.isBefore(LocalDate.now()),
+        type != null && isDatabaseDate(due) && !due.isBefore(LocalDate.now()),
         "Tipo o fecha de devolución inválida.");
     return transaction(
         c -> {
@@ -92,9 +92,9 @@ public final class ResourceService extends TransactionalService {
 
   public void updateResource(SchoolResource resource) {
     require(resource != null, "Recurso obligatorio.");
-    text(resource.code(), "Código");
-    text(resource.name(), "Nombre");
-    text(resource.location(), "Ubicación");
+    text(resource.code(), "Código", 50);
+    text(resource.name(), "Nombre", 150);
+    text(resource.location(), "Ubicación", 100);
     transaction(
         c -> {
           dao.lock(c, resource.id())
@@ -124,7 +124,7 @@ public final class ResourceService extends TransactionalService {
   }
 
   public void updateDueDate(long id, BorrowerType type, LocalDate due) {
-    require(type != null && due != null, "Datos obligatorios.");
+    require(type != null && isDatabaseDate(due), "Datos obligatorios.");
     transaction(
         c -> {
           LoanEntry initial =
@@ -142,6 +142,7 @@ public final class ResourceService extends TransactionalService {
 
   public void cancelLoan(long id, BorrowerType type, String reason) {
     text(reason, "Motivo");
+    textByteLength(reason, "El motivo", 65_535);
     require(type != null, "Tipo obligatorio.");
     transaction(
         c -> {

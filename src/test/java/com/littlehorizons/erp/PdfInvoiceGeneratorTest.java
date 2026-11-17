@@ -3,6 +3,7 @@ package com.littlehorizons.erp;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.littlehorizons.erp.model.*;
+import com.littlehorizons.erp.service.FinanceService;
 import com.littlehorizons.erp.util.*;
 import java.math.BigDecimal;
 import java.nio.file.*;
@@ -12,6 +13,8 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PdfInvoiceGeneratorTest {
   @TempDir Path directory;
@@ -74,6 +77,40 @@ class PdfInvoiceGeneratorTest {
       assertTrue(text.contains("TOTAL: COP 100.00"));
       assertTrue(text.contains("a".repeat(64)));
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {151, 170, 280, 487, 1029, 1562})
+  void invoiceQrIsReadableForPayloadsThatFailedWithAnAutomaticMask(long id) throws Exception {
+    String number = "LH-%06d".formatted(id);
+    String nit = "900000000-0 (SIMULADO)";
+    LocalDate date = LocalDate.of(2026, 11, 17);
+    BigDecimal total = new BigDecimal("95.20");
+    String cufe = FinanceService.cufe(number, nit, date, total);
+    Path output = directory.resolve("factura_%06d.pdf".formatted(id));
+    var invoice =
+        new Invoice(
+            id,
+            id,
+            number,
+            date,
+            "Test Customer",
+            "123",
+            "Address",
+            "School",
+            nit,
+            "School street",
+            "000",
+            "school@example.invalid",
+            total,
+            BigDecimal.ZERO,
+            total,
+            cufe,
+            "Generada",
+            output.toString(),
+            List.of());
+    assertEquals(output, new PdfInvoiceGenerator(directory).render(invoice));
+    PdfAssertions.validInvoice(invoice);
   }
 
   @Test

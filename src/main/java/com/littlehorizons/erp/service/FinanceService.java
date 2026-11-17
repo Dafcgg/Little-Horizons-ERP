@@ -36,8 +36,8 @@ public final class FinanceService extends TransactionalService {
   }
 
   public long createConcept(String code, String name, BigDecimal amount, BigDecimal rate) {
-    text(code, "Código");
-    text(name, "Nombre");
+    text(code, "Código", 20);
+    text(name, "Nombre", 100);
     BigDecimal normalized = money(amount);
     validateTaxRate(rate);
     return transaction(c -> dao.createConcept(c, code, name, normalized, rate));
@@ -71,10 +71,15 @@ public final class FinanceService extends TransactionalService {
         });
   }
 
+  private static String normalizeText(String value, String field, int limit) {
+    String normalized = text(value, field);
+    textLength(normalized, field, limit);
+    return normalized;
+  }
+
   public long createObligation(long student, long concept, LocalDate due, String reference) {
-    require(due != null, "Vencimiento obligatorio.");
-    String normalizedReference = text(reference, "Referencia del cobro");
-    require(normalizedReference.length() <= 50, "La referencia admite máximo 50 caracteres.");
+    require(isDatabaseDate(due), "Vencimiento inválido.");
+    String normalizedReference = normalizeText(reference, "Referencia del cobro", 50);
     return transaction(
         c -> {
           require(dao.activeStudent(c, student), "Estudiante inactivo o inexistente.");
@@ -97,10 +102,11 @@ public final class FinanceService extends TransactionalService {
     BigDecimal amount = money(input.amount());
     require(amount.signum() > 0, "El pago debe ser positivo.");
     require(
-        input.date() != null && !input.date().isAfter(LocalDate.now()) && input.method() != null,
+        isDatabaseDate(input.date())
+            && !input.date().isAfter(LocalDate.now())
+            && input.method() != null,
         "Fecha o método inválido.");
-    String receipt = text(input.receipt(), "Recibo");
-    require(receipt.length() <= 50, "El recibo admite máximo 50 caracteres.");
+    String receipt = normalizeText(input.receipt(), "Recibo", 50);
     PaymentRequest request =
         new PaymentRequest(
             input.obligationId(),
@@ -266,8 +272,8 @@ public final class FinanceService extends TransactionalService {
 
   public void updateConcept(PaymentConcept entry) {
     require(entry != null, "Concepto obligatorio.");
-    text(entry.code(), "Código");
-    text(entry.name(), "Nombre");
+    text(entry.code(), "Código", 20);
+    text(entry.name(), "Nombre", 100);
     money(entry.amount());
     validateTaxRate(entry.taxRate());
     transaction(
@@ -315,8 +321,8 @@ public final class FinanceService extends TransactionalService {
   }
 
   public void updateObligation(long id, String reference, LocalDate due, BigDecimal amount) {
-    text(reference, "Referencia");
-    require(reference.length() <= 50 && due != null, "Referencia o vencimiento inválido.");
+    String normalizedReference = text(reference, "Referencia", 50);
+    require(isDatabaseDate(due), "Vencimiento inválido.");
     BigDecimal normalized = money(amount);
     transaction(
         c -> {
@@ -334,7 +340,7 @@ public final class FinanceService extends TransactionalService {
                   id,
                   entry.studentId(),
                   entry.conceptId(),
-                  reference.trim(),
+                  normalizedReference,
                   due,
                   normalized,
                   entry.taxRate(),
@@ -387,8 +393,7 @@ public final class FinanceService extends TransactionalService {
   }
 
   public PaymentResult voidPayment(long id, String reason) {
-    String normalized = text(reason, "Motivo");
-    require(normalized.length() <= 255, "Motivo demasiado largo.");
+    String normalized = normalizeText(reason, "Motivo", 255);
     PaymentEntry pointer = payment(id);
     long invoiceId =
         transaction(
@@ -409,8 +414,7 @@ public final class FinanceService extends TransactionalService {
 
   public PaymentResult correctPayment(long id, PaymentRequest replacement, String reason) {
     PaymentRequest request = normalizePayment(replacement);
-    String normalized = text(reason, "Motivo");
-    require(normalized.length() <= 255, "Motivo demasiado largo.");
+    String normalized = normalizeText(reason, "Motivo", 255);
     PaymentEntry pointer = payment(id);
     require(
         pointer.request().obligationId() == request.obligationId(),

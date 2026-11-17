@@ -29,7 +29,9 @@ public final class ActivityController {
                                 0,
                                 view.required("Nombre"),
                                 view.id("ID profesor responsable"),
-                                view.integer("Cupo", 1, 10000))))),
+                                view.integer("Cupo", 1, 10000),
+                                true,
+                                view.read("Descripción opcional"))))),
         new Action(
             "Ingresar a club",
             () -> {
@@ -55,7 +57,9 @@ public final class ActivityController {
                                 view.date("Fecha"),
                                 view.required(
                                     "Tipo: Académico, Cultural, Deportivo, Social o Científico"),
-                                view.integer("¿Competencia? 1=sí, 0=no", 0, 1) == 1)))),
+                                view.integer("¿Competencia? 1=sí, 0=no", 0, 1) == 1,
+                                true,
+                                view.read("Descripción opcional"))))),
         new Action(
             "Registrar participante",
             () -> {

@@ -15,8 +15,7 @@ public final class CatalogService extends TransactionalService {
 
   private void validate(CatalogType type, CatalogEntry entry) {
     require(type != null && entry != null, "Datos de catálogo obligatorios.");
-    text(entry.name(), "Nombre");
-    require(entry.name().length() <= 50, "Nombre demasiado largo.");
+    text(entry.name(), "Nombre", 50);
     require(
         type != CatalogType.GRADE || entry.level() >= 0 && entry.level() <= 11,
         "Nivel inválido: use 0–11.");

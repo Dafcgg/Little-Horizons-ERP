@@ -640,7 +640,8 @@ class CompleteCrudIntegrationTest {
     new ActivityAdministrationController(
             activities,
             console(
-                String.join("\n", "2", String.valueOf(club), "UIClub", "", "", "", "0", ""), bytes))
+                String.join("\n", "2", String.valueOf(club), "UIClub", "", "", "", "", "0", ""),
+                bytes))
         .run();
     assertEquals("UIClub", activities.club(club).name());
     var finance = finance();

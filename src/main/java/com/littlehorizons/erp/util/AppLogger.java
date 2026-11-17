@@ -10,9 +10,11 @@ public final class AppLogger {
 
   public static synchronized void configure() throws IOException {
     if (LOGGER.getHandlers().length == 0) {
-      FileHandler handler = new FileHandler("error_log.txt", 1_000_000, 1, true);
+      FileHandler handler =
+          new FileHandler(System.getProperty("erp.log.path", "error_log.txt"), 1_000_000, 1, true);
       try {
         handler.setEncoding("UTF-8");
+        LOGGER.setLevel(Level.FINE);
         handler.setFormatter(new SimpleFormatter());
         LOGGER.setUseParentHandlers(false);
         LOGGER.addHandler(handler);
@@ -25,5 +27,9 @@ public final class AppLogger {
 
   public static void error(String operation, Throwable error) {
     LOGGER.log(Level.SEVERE, operation, error);
+  }
+
+  public static void transactionRejected(BusinessException error) {
+    LOGGER.log(Level.FINE, "Database transaction rejected by a business rule", error);
   }
 }

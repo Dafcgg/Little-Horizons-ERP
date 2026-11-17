@@ -1,7 +1,9 @@
 package com.littlehorizons.erp.service;
 
 import com.littlehorizons.erp.util.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.time.LocalDate;
 
 public abstract class TransactionalService {
   private final ConnectionProvider connections;
@@ -30,6 +32,7 @@ public abstract class TransactionalService {
         } catch (SQLException rollbackError) {
           error.addSuppressed(rollbackError);
         }
+        if (error instanceof BusinessException rejection) AppLogger.transactionRejected(rejection);
         throw error;
       }
     } catch (SQLException error) {
@@ -46,5 +49,27 @@ public abstract class TransactionalService {
   protected static String text(String value, String field) {
     require(value != null && !value.isBlank(), field + " es obligatorio.");
     return value.trim();
+  }
+
+  protected static String text(String value, String field, int limit) {
+    String trimmed = text(value, field);
+    textLength(value, field, limit);
+    return trimmed;
+  }
+
+  protected static void textLength(String value, String field, int limit) {
+    require(
+        value == null || value.codePointCount(0, value.length()) <= limit,
+        field + " admite máximo " + limit + " caracteres.");
+  }
+
+  protected static void textByteLength(String value, String field, int limit) {
+    require(
+        value == null || value.getBytes(StandardCharsets.UTF_8).length <= limit,
+        field + " admite máximo " + limit + " bytes en UTF-8.");
+  }
+
+  protected static boolean isDatabaseDate(LocalDate date) {
+    return date != null && date.getYear() >= 1000 && date.getYear() <= 9999;
   }
 }

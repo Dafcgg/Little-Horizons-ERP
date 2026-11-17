@@ -13,9 +13,14 @@ public final class ActivityService extends TransactionalService {
     this.dao = dao;
   }
 
+  private static void validateDescription(String description) {
+    textByteLength(description, "La descripción", 65_535);
+  }
+
   public long createClub(Club club) {
     require(club != null, "Datos obligatorios.");
-    text(club.name(), "Nombre");
+    text(club.name(), "Nombre", 100);
+    validateDescription(club.description());
     require(club.capacity() > 0, "El cupo debe ser positivo.");
     return transaction(
         c -> {
@@ -53,8 +58,9 @@ public final class ActivityService extends TransactionalService {
 
   public long createEvent(SchoolEvent event) {
     require(event != null, "Datos obligatorios.");
-    text(event.name(), "Nombre");
-    require(event.date() != null, "Fecha obligatoria.");
+    text(event.name(), "Nombre", 150);
+    validateDescription(event.description());
+    require(isDatabaseDate(event.date()), "Fecha obligatoria.");
     require(
         event.type() != null
             && Set.of("Académico", "Cultural", "Deportivo", "Social", "Científico")
@@ -67,22 +73,35 @@ public final class ActivityService extends TransactionalService {
     return transaction(dao::events);
   }
 
-  public void participate(long event, long student, String position) {
+  private static String normalizePosition(String position) {
+    if (position == null || position.isBlank()) return null;
     require(
-        position == null
-            || position.isBlank()
-            || Set.of("1er Lugar", "2do Lugar", "3er Lugar", "Participante").contains(position),
+        Set.of("1er Lugar", "2do Lugar", "3er Lugar", "Participante").contains(position),
         "Posición inválida.");
+    return position;
+  }
+
+  private void requireAvailablePosition(
+      java.sql.Connection connection, long event, long student, String position)
+      throws java.sql.SQLException {
+    if (position != null && !position.equals("Participante")) {
+      require(
+          !dao.hasPositionOccupied(connection, event, position, student),
+          "La posición ya ha sido asignada a otro participante.");
+    }
+  }
+
+  public void participate(long event, long student, String position) {
+    String result = normalizePosition(position);
     transaction(
         c -> {
           boolean competitive =
               dao.lockEvent(c, event)
                   .orElseThrow(() -> new BusinessException("Evento inexistente."));
-          require(
-              competitive || position == null || position.isBlank(),
-              "El evento no tiene competencia.");
+          require(competitive || result == null, "El evento no tiene competencia.");
+          requireAvailablePosition(c, event, student, result);
           require(dao.activeStudent(c, student), "Estudiante inactivo o inexistente.");
-          dao.participate(c, event, student, position);
+          dao.participate(c, event, student, result);
           return null;
         });
   }
@@ -94,7 +113,8 @@ public final class ActivityService extends TransactionalService {
 
   public void updateClub(Club club) {
     require(club != null, "Club obligatorio.");
-    text(club.name(), "Nombre");
+    text(club.name(), "Nombre", 100);
+    validateDescription(club.description());
     require(club.capacity() > 0, "Cupo inválido.");
     transaction(
         c -> {
@@ -127,7 +147,8 @@ public final class ActivityService extends TransactionalService {
   }
 
   public void updateMembership(long id, java.time.LocalDate joined, String status) {
-    require(joined != null && !joined.isAfter(java.time.LocalDate.now()), "Fecha inválida.");
+    require(
+        isDatabaseDate(joined) && !joined.isAfter(java.time.LocalDate.now()), "Fecha inválida.");
     require(status != null && Set.of("Activa", "Retirada").contains(status), "Estado inválido.");
     transaction(
         c -> {
@@ -161,8 +182,9 @@ public final class ActivityService extends TransactionalService {
   }
 
   public void updateEvent(SchoolEvent event) {
-    require(event != null && event.date() != null, "Datos del evento obligatorios.");
-    text(event.name(), "Nombre");
+    require(event != null && isDatabaseDate(event.date()), "Datos del evento obligatorios.");
+    text(event.name(), "Nombre", 150);
+    validateDescription(event.description());
     require(
         event.type() != null
             && Set.of("Académico", "Cultural", "Deportivo", "Social", "Científico")
@@ -198,21 +220,16 @@ public final class ActivityService extends TransactionalService {
 
   public void updateParticipation(EventParticipation entry) {
     require(entry != null, "Participación obligatoria.");
-    require(
-        entry.position() == null
-            || entry.position().isBlank()
-            || Set.of("1er Lugar", "2do Lugar", "3er Lugar", "Participante")
-                .contains(entry.position()),
-        "Posición inválida.");
+    String result = normalizePosition(entry.position());
     transaction(
         c -> {
-          SchoolEvent e =
+          SchoolEvent event =
               dao.event(c, entry.eventId(), true)
                   .orElseThrow(() -> new BusinessException("Evento inexistente."));
-          require(
-              e.competitive() || entry.position() == null || entry.position().isBlank(),
-              "El evento no tiene competencia.");
-          require(dao.updateParticipation(c, entry) == 1, "Participante inexistente.");
+          require(event.competitive() || result == null, "El evento no tiene competencia.");
+          requireAvailablePosition(c, entry.eventId(), entry.studentId(), result);
+          var updated = new EventParticipation(entry.eventId(), entry.studentId(), result);
+          require(dao.updateParticipation(c, updated) == 1, "Participante inexistente.");
           return null;
         });
   }

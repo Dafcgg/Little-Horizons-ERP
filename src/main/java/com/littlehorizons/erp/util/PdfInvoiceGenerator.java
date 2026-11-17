@@ -1,9 +1,14 @@
 package com.littlehorizons.erp.util;
 
 import com.google.zxing.*;
+import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeReader;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.littlehorizons.erp.model.*;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
@@ -12,6 +17,9 @@ import org.apache.pdfbox.pdmodel.font.*;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 
 public final class PdfInvoiceGenerator implements InvoiceRenderer {
+  private static final int QR_PIXELS = 360;
+  private static final int QR_MASK_COUNT = 8;
+
   private final Path directory;
 
   public PdfInvoiceGenerator(Path directory) {
@@ -79,25 +87,12 @@ public final class PdfInvoiceGenerator implements InvoiceRenderer {
             }
             stream.endText();
             if (last == rows.size()) {
-              try {
-                var matrix =
-                    new QRCodeWriter()
-                        .encode(
-                            qrPayload(invoice),
-                            BarcodeFormat.QR_CODE,
-                            220,
-                            220,
-                            Map.of(EncodeHintType.CHARACTER_SET, "UTF-8"));
-                stream.drawImage(
-                    LosslessFactory.createFromImage(
-                        document, MatrixToImageWriter.toBufferedImage(matrix)),
-                    40,
-                    40,
-                    150,
-                    150);
-              } catch (WriterException error) {
-                throw new IOException("QR generation failed", error);
-              }
+              stream.drawImage(
+                  LosslessFactory.createFromImage(document, readableQr(qrPayload(invoice))),
+                  40,
+                  40,
+                  150,
+                  150);
             }
           }
         }
@@ -116,6 +111,33 @@ public final class PdfInvoiceGenerator implements InvoiceRenderer {
     } finally {
       Files.deleteIfExists(temporary);
     }
+  }
+
+  private static BufferedImage readableQr(String payload) throws IOException {
+    var options = new EnumMap<EncodeHintType, Object>(EncodeHintType.class);
+    options.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+    options.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+    var writer = new QRCodeWriter();
+    var reader = new QRCodeReader();
+    // Try the encoder's preferred mask first, then the explicit QR masks if detection fails.
+    for (int mask = -1; mask < QR_MASK_COUNT; mask++) {
+      if (mask >= 0) options.put(EncodeHintType.QR_MASK_PATTERN, mask);
+      BufferedImage image;
+      try {
+        image =
+            MatrixToImageWriter.toBufferedImage(
+                writer.encode(payload, BarcodeFormat.QR_CODE, QR_PIXELS, QR_PIXELS, options));
+      } catch (WriterException error) {
+        throw new IOException("QR generation failed", error);
+      }
+      var bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));
+      try {
+        if (payload.equals(reader.decode(bitmap).getText())) return image;
+      } catch (ReaderException ignored) {
+        // Some valid QR patterns are missed by the detector. Try the next mask.
+      }
+    }
+    throw new IOException("Could not generate a readable invoice QR code");
   }
 
   public static String qrPayload(Invoice invoice) {

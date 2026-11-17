@@ -50,6 +50,9 @@ public interface ActivityDao {
 
   boolean hasPositions(Connection c, long event) throws SQLException;
 
+  boolean hasPositionOccupied(Connection c, long event, String position, long student)
+      throws SQLException;
+
   List<EventParticipation> participants(Connection c, long event) throws SQLException;
 
   int updateParticipation(Connection c, EventParticipation entry) throws SQLException;

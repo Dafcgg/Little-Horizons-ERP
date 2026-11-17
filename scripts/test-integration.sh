@@ -24,4 +24,4 @@ endpoint=$(docker port "$container_name" 3306/tcp)
 export ERP_TEST_DB_URL="jdbc:mysql://127.0.0.1:${endpoint##*:}/erp_little_horizons?serverTimezone=America/Bogota"
 export ERP_TEST_DB_USER=root
 export ERP_TEST_DB_PASSWORD=erp_test_only
-mvn clean verify
+mvn clean verify "$@"

@@ -3,16 +3,19 @@ package com.littlehorizons.erp.dao.jdbc;
 import com.littlehorizons.erp.dao.ActivityDao;
 import com.littlehorizons.erp.model.*;
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.*;
 
 public final class JdbcActivityDao implements ActivityDao {
   public long createClub(Connection c, Club club) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO clubes(nombre_club,id_profesor_supervisor,capacidad_maxima) VALUES(?,?,?)",
+        "INSERT INTO clubes(nombre_club,id_profesor_supervisor,capacidad_maxima,descripcion)"
+            + " VALUES(?,?,?,?)",
         club.name(),
         club.teacherId(),
-        club.capacity());
+        club.capacity(),
+        club.description());
   }
 
   public List<Club> clubs(Connection c) throws SQLException {
@@ -25,7 +28,8 @@ public final class JdbcActivityDao implements ActivityDao {
         r.getString("nombre_club"),
         r.getLong("id_profesor_supervisor"),
         r.getInt("capacidad_maxima"),
-        r.getBoolean("esta_activo"));
+        r.getBoolean("esta_activo"),
+        r.getString("descripcion"));
   }
 
   public Optional<Club> lockClub(Connection c, long id) throws SQLException {
@@ -76,26 +80,28 @@ public final class JdbcActivityDao implements ActivityDao {
   public long createEvent(Connection c, SchoolEvent event) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO eventos(nombre_evento,fecha_evento,tipo_evento,tiene_competencia)"
-            + " VALUES(?,?,?,?)",
+        "INSERT INTO eventos(nombre_evento,fecha_evento,tipo_evento,tiene_competencia,descripcion)"
+            + " VALUES(?,?,?,?,?)",
         event.name(),
         event.date(),
         event.type(),
-        event.competitive());
+        event.competitive(),
+        event.description());
   }
 
   public List<SchoolEvent> events(Connection c) throws SQLException {
-    return Jdbc.query(
-        c,
-        "SELECT * FROM eventos ORDER BY fecha_evento",
-        r ->
-            new SchoolEvent(
-                r.getLong("id_evento"),
-                r.getString("nombre_evento"),
-                r.getDate("fecha_evento").toLocalDate(),
-                r.getString("tipo_evento"),
-                r.getBoolean("tiene_competencia"),
-                r.getBoolean("esta_activo")));
+    return Jdbc.query(c, "SELECT * FROM eventos ORDER BY fecha_evento", this::event);
+  }
+
+  private SchoolEvent event(ResultSet r) throws SQLException {
+    return new SchoolEvent(
+        r.getLong("id_evento"),
+        r.getString("nombre_evento"),
+        r.getObject("fecha_evento", LocalDate.class),
+        r.getString("tipo_evento"),
+        r.getBoolean("tiene_competencia"),
+        r.getBoolean("esta_activo"),
+        r.getString("descripcion"));
   }
 
   public Optional<Boolean> lockEvent(Connection c, long event) throws SQLException {
@@ -130,11 +136,12 @@ public final class JdbcActivityDao implements ActivityDao {
     return Jdbc.update(
         c,
         "UPDATE clubes SET nombre_club=?,id_profesor_supervisor=?,capacidad_maxima=?,esta_activo=?"
-            + " WHERE id_club=?",
+            + ",descripcion=COALESCE(?,descripcion) WHERE id_club=?",
         v.name(),
         v.teacherId(),
         v.capacity(),
         v.active(),
+        v.description(),
         v.id());
   }
 
@@ -170,7 +177,7 @@ public final class JdbcActivityDao implements ActivityDao {
         r.getLong("id_membresia"),
         r.getLong("id_estudiante"),
         r.getLong("id_club"),
-        r.getDate("fecha_ingreso").toLocalDate(),
+        r.getObject("fecha_ingreso", LocalDate.class),
         r.getString("estado_membresia"));
   }
 
@@ -204,14 +211,7 @@ public final class JdbcActivityDao implements ActivityDao {
     return Jdbc.query(
             c,
             "SELECT * FROM eventos WHERE id_evento=?" + (lock ? " FOR UPDATE" : ""),
-            r ->
-                new SchoolEvent(
-                    r.getLong("id_evento"),
-                    r.getString("nombre_evento"),
-                    r.getDate("fecha_evento").toLocalDate(),
-                    r.getString("tipo_evento"),
-                    r.getBoolean("tiene_competencia"),
-                    r.getBoolean("esta_activo")),
+            this::event,
             id)
         .stream()
         .findFirst();
@@ -222,12 +222,13 @@ public final class JdbcActivityDao implements ActivityDao {
         c,
         "UPDATE eventos SET"
             + " nombre_evento=?,fecha_evento=?,tipo_evento=?,tiene_competencia=?,esta_activo=?"
-            + " WHERE id_evento=?",
+            + ",descripcion=COALESCE(?,descripcion) WHERE id_evento=?",
         v.name(),
         v.date(),
         v.type(),
         v.competitive(),
         v.active(),
+        v.description(),
         v.id());
   }
 
@@ -237,6 +238,18 @@ public final class JdbcActivityDao implements ActivityDao {
             "SELECT COUNT(*) FROM participantes_evento WHERE id_evento=? AND posicion_obtenida IS"
                 + " NOT NULL AND posicion_obtenida<>''",
             event)
+        > 0;
+  }
+
+  public boolean hasPositionOccupied(Connection c, long event, String position, long student)
+      throws SQLException {
+    return Jdbc.count(
+            c,
+            "SELECT COUNT(*) FROM participantes_evento WHERE id_evento=? AND"
+                + " posicion_obtenida=? AND id_estudiante<>?",
+            event,
+            position,
+            student)
         > 0;
   }
 

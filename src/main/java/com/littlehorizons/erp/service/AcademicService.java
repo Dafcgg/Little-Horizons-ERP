@@ -17,9 +17,11 @@ public final class AcademicService extends TransactionalService {
 
   public long registerTeacher(Teacher teacher) {
     require(teacher != null, "Datos obligatorios.");
-    text(teacher.document(), "Documento");
-    text(teacher.firstName(), "Nombre");
-    text(teacher.lastName(), "Apellido");
+    text(teacher.document(), "Documento", 20);
+    text(teacher.firstName(), "Nombre", 100);
+    text(teacher.lastName(), "Apellido", 100);
+    textLength(teacher.email(), "Correo", 100);
+    textLength(teacher.specialization(), "Especialización", 100);
     require(
         teacher.email() != null && teacher.email().matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"),
         "Correo inválido.");
@@ -28,8 +30,8 @@ public final class AcademicService extends TransactionalService {
 
   public long registerSubject(Subject subject) {
     require(subject != null, "Datos obligatorios.");
-    text(subject.code(), "Código");
-    text(subject.name(), "Nombre");
+    text(subject.code(), "Código", 20);
+    text(subject.name(), "Nombre", 100);
     return transaction(
         c -> {
           require(dao.activeGrade(c, subject.gradeId()), "Grado inactivo o inexistente.");
@@ -54,8 +56,8 @@ public final class AcademicService extends TransactionalService {
       LocalTime start,
       LocalTime end) {
     require(year >= 2000 && year <= 2100 && day >= 1 && day <= 7, "Año o día inválido.");
-    text(section, "Grupo");
-    require(start != null && end != null && start.isBefore(end), "Horario inválido.");
+    text(section, "Grupo", 10);
+    requireValidSchedule(day, start, end);
     transaction(
         c -> {
           // Lock in a stable order before checking competing assignments.
@@ -102,7 +104,7 @@ public final class AcademicService extends TransactionalService {
   public void subscribe(
       long student, long subject, int year, AcademicPeriod period, String section) {
     require(period != null && period != AcademicPeriod.FINAL, "Seleccione período I–IV.");
-    text(section, "Grupo");
+    text(section, "Grupo", 10);
     transaction(
         c -> {
           require(
@@ -156,7 +158,7 @@ public final class AcademicService extends TransactionalService {
       LocalDate date,
       AttendanceStatus status) {
     require(
-        date != null && !date.isAfter(LocalDate.now()) && date.getYear() == year,
+        isDatabaseDate(date) && !date.isAfter(LocalDate.now()) && date.getYear() == year,
         "Fecha de asistencia inválida.");
     require(
         status != null && period != null && period != AcademicPeriod.FINAL,
@@ -217,7 +219,7 @@ public final class AcademicService extends TransactionalService {
 
   public List<String> absences(LocalDate start, LocalDate end, int threshold) {
     require(
-        start != null && end != null && !start.isAfter(end) && threshold >= 0,
+        isDatabaseDate(start) && isDatabaseDate(end) && !start.isAfter(end) && threshold >= 0,
         "Rango o umbral inválido.");
     return transaction(c -> dao.absenceReport(c, start, end, threshold));
   }
@@ -243,11 +245,13 @@ public final class AcademicService extends TransactionalService {
 
   public void updateTeacher(Teacher teacher) {
     require(teacher != null, "Profesor obligatorio.");
-    text(teacher.document(), "Documento");
-    text(teacher.firstName(), "Nombre");
-    text(teacher.lastName(), "Apellido");
+    text(teacher.document(), "Documento", 20);
+    text(teacher.firstName(), "Nombre", 100);
+    text(teacher.lastName(), "Apellido", 100);
+    textLength(teacher.email(), "Correo", 100);
+    textLength(teacher.specialization(), "Especialización", 100);
     require(
-        teacher.email() != null && teacher.email().matches("[^ @]+@[^ @]+[.][^ @]+"),
+        teacher.email() != null && teacher.email().matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"),
         "Correo inválido.");
     require(
         teacher.status() != null
@@ -276,8 +280,8 @@ public final class AcademicService extends TransactionalService {
 
   public void updateSubject(Subject subject) {
     require(subject != null, "Materia obligatoria.");
-    text(subject.code(), "Código");
-    text(subject.name(), "Nombre");
+    text(subject.code(), "Código", 20);
+    text(subject.name(), "Nombre", 100);
     transaction(
         c -> {
           Subject old =
@@ -311,7 +315,7 @@ public final class AcademicService extends TransactionalService {
 
   public void updateAssignment(TeachingAssignment entry) {
     require(entry != null, "Asignación obligatoria.");
-    text(entry.section(), "Grupo");
+    text(entry.section(), "Grupo", 10);
     require(entry.year() >= 2000 && entry.year() <= 2100, "Año inválido.");
     transaction(
         c -> {
@@ -376,10 +380,15 @@ public final class AcademicService extends TransactionalService {
         });
   }
 
-  public void updateSchedule(long id, int day, LocalTime start, LocalTime end) {
+  private static void requireValidSchedule(int day, LocalTime start, LocalTime end) {
     require(
         day >= 1 && day <= 7 && start != null && end != null && start.isBefore(end),
         "Horario inválido.");
+    require(start.getNano() == 0 && end.getNano() == 0, "El horario admite hasta segundos.");
+  }
+
+  public void updateSchedule(long id, int day, LocalTime start, LocalTime end) {
+    requireValidSchedule(day, start, end);
     transaction(
         c -> {
           ClassSchedule old =
@@ -421,7 +430,7 @@ public final class AcademicService extends TransactionalService {
   }
 
   public void updateSubscription(long id, String section, String status) {
-    text(section, "Grupo");
+    text(section, "Grupo", 10);
     require(
         status != null && Set.of("Activa", "Retirada", "Completada").contains(status),
         "Estado inválido.");

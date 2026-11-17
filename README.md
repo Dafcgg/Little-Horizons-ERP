@@ -153,9 +153,9 @@ El menú abre sin conectarse; cada operación obtiene su conexión cuando la nec
 
 El script crea un MySQL desechable con puerto local dinámico, espera una consulta TCP válida, instala el SQL y ejecuta `mvn clean verify`. Elimina contenedor y volúmenes al terminar. Sus credenciales solo corresponden a ese entorno de pruebas.
 
-Resultado actual: **62 aprobadas, 0 fallos, 0 errores y 0 omitidas**: 20 independientes de MySQL y 42 de integración. Informes en `target/surefire-reports/`.
+Última verificación con MySQL 8.0.46 y Java 17: **2.456 pruebas aprobadas**, sin fallos, errores ni omisiones. Los informes de JUnit están en `target/surefire-reports/` y los logs de las pruebas en `target/error_log.txt`.
 
-Las pruebas MySQL solo se habilitan con `ERP_TEST_DB_URL`. El script configura también `ERP_TEST_DB_USER` y `ERP_TEST_DB_PASSWORD`. Sin esa URL, Maven ejecuta las 20 pruebas independientes y omite las 42 de integración. Las variables de prueba deben apuntar a una base aislada, porque los escenarios insertan y modifican registros.
+Las pruebas MySQL solo se habilitan con `ERP_TEST_DB_URL`. El script configura también `ERP_TEST_DB_USER` y `ERP_TEST_DB_PASSWORD`. Sin esa URL, Maven ejecuta las pruebas independientes de MySQL. Las variables de prueba deben apuntar a una base aislada, porque los escenarios insertan y modifican registros.
 
 ## 7. Arquitectura MVC + DAO/Service
 

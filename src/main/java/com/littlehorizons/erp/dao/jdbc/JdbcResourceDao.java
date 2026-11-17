@@ -73,7 +73,7 @@ public final class JdbcResourceDao implements ResourceDao {
         r.getLong("id_recurso"),
         r.getLong(borrower(type)),
         type,
-        r.getDate("fecha_devolucion_esperada").toLocalDate());
+        r.getObject("fecha_devolucion_esperada", LocalDate.class));
   }
 
   public Optional<Loan> findLoan(Connection c, long id, BorrowerType type) throws SQLException {
@@ -163,30 +163,33 @@ public final class JdbcResourceDao implements ResourceDao {
         .isEmpty();
   }
 
-  private LoanEntry entry(java.sql.ResultSet r, BorrowerType type) throws SQLException {
-    java.sql.Date returned = r.getDate("fecha_devolucion_real");
+  private LoanEntry entry(ResultSet r, BorrowerType type, LocalDate today) throws SQLException {
+    LocalDate due = r.getObject("fecha_devolucion_esperada", LocalDate.class);
+    LocalDate returned = r.getObject("fecha_devolucion_real", LocalDate.class);
     return new LoanEntry(
         r.getLong("id_prestamo"),
         r.getLong("id_recurso"),
         r.getLong(borrower(type)),
         type,
-        r.getDate("fecha_prestamo").toLocalDate(),
-        r.getDate("fecha_devolucion_esperada").toLocalDate(),
-        returned == null ? null : returned.toLocalDate(),
-        r.getString("estado_prestamo"));
+        r.getObject("fecha_prestamo", LocalDate.class),
+        due,
+        returned,
+        returned == null && due.isBefore(today) ? "Vencido" : r.getString("estado_prestamo"));
   }
 
   public List<LoanEntry> loans(Connection c, BorrowerType type) throws SQLException {
+    LocalDate today = LocalDate.now();
     return Jdbc.query(
-        c, "SELECT * FROM " + table(type) + " ORDER BY id_prestamo", r -> entry(r, type));
+        c, "SELECT * FROM " + table(type) + " ORDER BY id_prestamo", r -> entry(r, type, today));
   }
 
   public Optional<LoanEntry> loanEntry(Connection c, long id, BorrowerType type, boolean lock)
       throws SQLException {
+    LocalDate today = LocalDate.now();
     return Jdbc.query(
             c,
             "SELECT * FROM " + table(type) + " WHERE id_prestamo=?" + (lock ? " FOR UPDATE" : ""),
-            r -> entry(r, type),
+            r -> entry(r, type, today),
             id)
         .stream()
         .findFirst();

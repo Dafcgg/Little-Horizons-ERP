@@ -16,16 +16,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 
-@EnabledIfEnvironmentVariable(named = "ERP_TEST_DB_URL", matches = ".+")
+@EnabledIfEnvironmentVariable(named = MysqlFixture.URL, matches = ".+")
 class StressScenariosTest {
-  private static final int ROUNDS = 5;
-  private static final int CONTENDERS = 20;
-  private final ConnectionProvider connections =
-      () ->
-          DriverManager.getConnection(
-              System.getenv("ERP_TEST_DB_URL"),
-              System.getenv().getOrDefault("ERP_TEST_DB_USER", "root"),
-              System.getenv("ERP_TEST_DB_PASSWORD"));
+  private final ConnectionProvider connections = MysqlFixture.CONNECTIONS;
   @TempDir Path directory;
 
   @BeforeAll
@@ -33,79 +26,179 @@ class StressScenariosTest {
     AppLogger.configure();
   }
 
-  @Test
-  void twentyConcurrentStudentsNeverExceedThreeSeatsAcrossFiveRounds() throws Exception {
-    var service = new ActivityService(connections, new JdbcActivityDao());
-    int accepted = 0;
-    for (int round = 0; round < ROUNDS; round++) {
-      long club = service.createClub(new Club(0, "Stress " + UUID.randomUUID(), 1, 3));
-      List<Runnable> tasks = new ArrayList<>();
-      for (int index = 1; index <= CONTENDERS; index++) {
-        long student = index;
-        tasks.add(() -> service.join(club, student));
-      }
-      int confirmed = compete(tasks, "El club no tiene cupos.");
-      assertEquals(3, confirmed, "round " + round);
-      accepted += confirmed;
-      try (Connection c = connections.open()) {
-        assertEquals(
-            3,
-            Jdbc.count(
-                c,
-                "SELECT COUNT(*) FROM membresias_club WHERE id_club=? AND"
-                    + " estado_membresia='Activa'",
-                club));
-      }
+  @RepeatedTest(5)
+  void fortyStudentsCannotTakeMoreThanTwoClubSeats() throws Exception {
+    var activity = new ActivityService(connections, new JdbcActivityDao());
+    var students = new StudentService(connections, new JdbcStudentDao());
+    long club = activity.createClub(new Club(0, "QA " + MysqlFixture.unique(), 1, 2));
+    List<Runnable> tasks = new ArrayList<>();
+    for (int index = 0; index < 40; index++) {
+      long student =
+          students.register(
+              new Student(
+                  0,
+                  MysqlFixture.unique(),
+                  "Club",
+                  "Contender",
+                  LocalDate.of(2012, 2, 29),
+                  null,
+                  "Activo"),
+              1,
+              "Tutor");
+      tasks.add(() -> activity.join(club, student));
     }
-    assertEquals(15, accepted);
-    System.out.println(
-        "QA_CLUB: attempts=100 accepted=15 expected_rejections=85 rounds=5 capacity=3");
+    assertEquals(2, compete(tasks, "El club no tiene cupos."));
+    try (Connection c = connections.open()) {
+      assertEquals(
+          2,
+          Jdbc.count(
+              c,
+              "SELECT COUNT(*) FROM membresias_club WHERE id_club=? AND estado_membresia='Activa'",
+              club));
+    }
+  }
+
+  @RepeatedTest(5)
+  void thirtyMixedBorrowersProduceExactlyOneLoanAcrossBothTables() throws Exception {
+    var service = new ResourceService(connections, new JdbcResourceDao());
+    long resource =
+        service.create(
+            new SchoolResource(
+                0, MysqlFixture.unique(), "Stress resource", 1, "QA room", "Disponible"));
+    List<Runnable> tasks = new ArrayList<>();
+    for (int index = 0; index < 30; index++) {
+      long borrower = index / 2 + 1;
+      BorrowerType type = index % 2 == 0 ? BorrowerType.STUDENT : BorrowerType.TEACHER;
+      tasks.add(() -> service.lend(resource, borrower, type, LocalDate.now().plusDays(7)));
+    }
+    assertEquals(1, compete(tasks, "El recurso no está disponible."));
+    try (Connection c = connections.open()) {
+      long studentLoans =
+          Jdbc.count(
+              c,
+              "SELECT COUNT(*) FROM prestamos_estudiante WHERE id_recurso=? AND"
+                  + " fecha_devolucion_real IS NULL",
+              resource);
+      long teacherLoans =
+          Jdbc.count(
+              c,
+              "SELECT COUNT(*) FROM prestamos_profesor WHERE id_recurso=? AND fecha_devolucion_real"
+                  + " IS NULL",
+              resource);
+      assertEquals(1, studentLoans + teacherLoans);
+    }
+    assertEquals("Prestado", service.resource(resource).status());
+  }
+
+  @RepeatedTest(5)
+  void twentyFivePaymentsSettleTheBalanceOnce() throws Exception {
+    var dao = new JdbcFinanceDao();
+    var service = finance(dao);
+    BigDecimal total = new BigDecimal("47.20");
+    long obligation = obligation(service, total);
+    List<Runnable> tasks = new ArrayList<>();
+    var winningPayments = new ConcurrentLinkedQueue<PaymentResult>();
+    for (int index = 0; index < 25; index++) {
+      String receipt = MysqlFixture.unique();
+      tasks.add(
+          () -> winningPayments.add(service.confirmPayment(request(obligation, total, receipt))));
+    }
+    assertEquals(1, compete(tasks, "El pago supera el saldo pendiente."));
+    PaymentResult winner = winningPayments.element();
+    assertTrue(winner.pdfGenerated());
+    try (Connection c = connections.open()) {
+      var debt = dao.lockObligation(c, obligation).orElseThrow();
+      assertEquals(new BigDecimal("0.00"), debt.amount().subtract(debt.paid()));
+      assertEquals(
+          1, Jdbc.count(c, "SELECT COUNT(*) FROM pagos WHERE id_obligacion=?", obligation));
+      assertEquals(
+          1, Jdbc.count(c, "SELECT COUNT(*) FROM facturas WHERE id_pago=?", winner.paymentId()));
+    }
+    PdfAssertions.validInvoice(service.invoice(winner.invoiceId()));
+  }
+
+  @RepeatedTest(5)
+  void twentyRegenerationsAgreeOnOneCompletePdf() throws Exception {
+    var dao = new JdbcFinanceDao();
+    var service = finance(dao);
+    long obligation = obligation(service, BigDecimal.ONE);
+    var request = request(obligation, BigDecimal.ONE, MysqlFixture.unique());
+    PaymentResult payment = service.confirmPayment(request);
+    assertTrue(payment.pdfGenerated());
+    long invoiceId = payment.invoiceId();
+    Invoice before = service.invoice(invoiceId);
+    Path destination = Path.of(before.path());
+    List<Runnable> tasks = new ArrayList<>();
+    for (int index = 0; index < 20; index++) {
+      tasks.add(
+          () -> {
+            // Separate service instances exercise the same process-wide synchronization as the CLI.
+            PaymentResult regenerated = finance(dao).regenerate(invoiceId);
+            assertTrue(regenerated.pdfGenerated(), regenerated.message());
+            assertEquals(payment.paymentId(), regenerated.paymentId());
+          });
+    }
+    assertEquals(20, compete(tasks, null));
+    Invoice after = service.invoice(invoiceId);
+    assertEquals(before.cufe(), after.cufe());
+    assertEquals(destination, Path.of(after.path()));
+    PdfAssertions.validInvoice(after);
+    try (var files = Files.list(directory)) {
+      assertEquals(List.of(destination), files.toList());
+    }
   }
 
   @Test
-  void twentyMixedBorrowersProduceExactlyOneLoanAcrossBothTables() throws Exception {
-    var service = new ResourceService(connections, new JdbcResourceDao());
-    int accepted = 0;
-    for (int round = 0; round < ROUNDS; round++) {
-      long resource =
-          service.create(
-              new SchoolResource(
-                  0, UUID.randomUUID().toString(), "Stress resource", 1, "QA room", "Disponible"));
-      List<Runnable> tasks = new ArrayList<>();
-      for (int index = 1; index <= CONTENDERS; index++) {
-        long borrower = index;
-        BorrowerType type = index % 2 == 0 ? BorrowerType.STUDENT : BorrowerType.TEACHER;
-        tasks.add(() -> service.lend(resource, borrower, type, LocalDate.now().plusDays(7)));
+  void twoThousandOperationsLeaveNoMysqlSessionsOpen() throws Exception {
+    var service = new CatalogService(connections, new JdbcCatalogDao());
+    try (Connection probe = connections.open()) {
+      String server = Jdbc.query(probe, "SELECT VERSION()", row -> row.getString(1)).get(0);
+      assertTrue(server.startsWith("8.0."), server);
+      long baseline = connectedThreads(probe);
+      for (int index = 0; index < 2_000; index++) {
+        if (index % 2 == 0) {
+          assertFalse(service.list(CatalogType.GRADE).isEmpty());
+        } else {
+          var rejected =
+              assertThrows(
+                  BusinessException.class,
+                  () ->
+                      service.update(
+                          CatalogType.RESOURCE_CATEGORY,
+                          new CatalogEntry(Integer.MAX_VALUE, "Missing category", 0, true)));
+          assertNull(rejected.getCause());
+        }
       }
-      int confirmed = compete(tasks, "El recurso no está disponible.");
-      assertEquals(1, confirmed, "round " + round);
-      accepted += confirmed;
-      try (Connection c = connections.open()) {
-        long studentLoans =
-            Jdbc.count(
-                c,
-                "SELECT COUNT(*) FROM prestamos_estudiante WHERE id_recurso=? AND"
-                    + " fecha_devolucion_real IS NULL",
-                resource);
-        long teacherLoans =
-            Jdbc.count(
-                c,
-                "SELECT COUNT(*) FROM prestamos_profesor WHERE id_recurso=? AND"
-                    + " fecha_devolucion_real IS NULL",
-                resource);
-        assertEquals(1, studentLoans + teacherLoans);
-        assertEquals(
-            "Prestado",
-            Jdbc.query(
-                    c,
-                    "SELECT estado_recurso FROM recursos WHERE id_recurso=?",
-                    r -> r.getString(1),
-                    resource)
-                .get(0));
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      long remaining = connectedThreads(probe);
+      while (remaining > baseline && System.nanoTime() < deadline) {
+        Thread.sleep(20);
+        remaining = connectedThreads(probe);
       }
+      assertEquals(baseline, remaining, "MySQL Threads_connected after 2,000 transactions");
+      System.out.printf(
+          "QA JDBC: MySQL %s, Threads_connected before=%d after=%d%n", server, baseline, remaining);
     }
-    assertEquals(5, accepted);
-    System.out.println("QA_LOAN: attempts=100 accepted=5 expected_rejections=95 rounds=5 tables=2");
+  }
+
+  private static long connectedThreads(Connection probe) throws SQLException {
+    return Jdbc.query(probe, "SHOW GLOBAL STATUS LIKE 'Threads_connected'", row -> row.getLong(2))
+        .get(0);
+  }
+
+  private FinanceService finance(JdbcFinanceDao dao) {
+    return new FinanceService(
+        connections, dao, new PdfInvoiceGenerator(directory), SchoolInformation.fromEnvironment());
+  }
+
+  private static long obligation(FinanceService service, BigDecimal amount) {
+    long concept =
+        service.createConcept(MysqlFixture.unique(), "Concurrent payment", amount, BigDecimal.ZERO);
+    return service.createObligation(1, concept, LocalDate.now(), MysqlFixture.unique());
+  }
+
+  private static PaymentRequest request(long obligation, BigDecimal amount, String receipt) {
+    return new PaymentRequest(obligation, 1, amount, LocalDate.now(), PaymentMethod.CASH, receipt);
   }
 
   @Test
@@ -243,7 +336,7 @@ class StressScenariosTest {
                     task.run();
                     return true;
                   } catch (BusinessException rejection) {
-                    if (!expectedMessage.equals(rejection.getMessage()))
+                    if (expectedMessage == null || !expectedMessage.equals(rejection.getMessage()))
                       throw new AssertionError("Unexpected rejection", rejection);
                     return false;
                   }

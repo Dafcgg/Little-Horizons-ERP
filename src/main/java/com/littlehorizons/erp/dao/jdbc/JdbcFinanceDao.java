@@ -134,7 +134,7 @@ public final class JdbcFinanceDao implements FinanceDao {
                       r.getLong("id_obligacion"),
                       r.getLong("id_acudiente"),
                       r.getBigDecimal("monto_pagado"),
-                      r.getDate("fecha_pago").toLocalDate(),
+                      r.getObject("fecha_pago", LocalDate.class),
                       method,
                       r.getString("numero_recibo")));
             },
@@ -251,7 +251,7 @@ public final class JdbcFinanceDao implements FinanceDao {
                     r.getLong("id_factura"),
                     r.getLong("id_pago"),
                     r.getString("numero_factura"),
-                    r.getDate("fecha_emision").toLocalDate(),
+                    r.getObject("fecha_emision", LocalDate.class),
                     r.getString("cliente_nombre"),
                     r.getString("cliente_documento"),
                     r.getString("cliente_direccion"),
@@ -302,7 +302,7 @@ public final class JdbcFinanceDao implements FinanceDao {
                 r.getLong(1),
                 r.getLong(2),
                 r.getString(3),
-                r.getDate(4).toLocalDate(),
+                r.getObject(4, LocalDate.class),
                 r.getBigDecimal(5)),
         cutoff);
   }
@@ -326,7 +326,7 @@ public final class JdbcFinanceDao implements FinanceDao {
                 + " | Estudiante "
                 + r.getLong(2)
                 + " | "
-                + r.getDate(3)
+                + r.getObject(3, LocalDate.class)
                 + " | COP "
                 + r.getBigDecimal(4)
                 + " | "
@@ -397,7 +397,7 @@ public final class JdbcFinanceDao implements FinanceDao {
         r.getLong("id_estudiante"),
         r.getLong("id_concepto"),
         r.getString("referencia"),
-        r.getDate("fecha_vencimiento").toLocalDate(),
+        r.getObject("fecha_vencimiento", LocalDate.class),
         r.getBigDecimal("monto"),
         r.getBigDecimal("tasa_iva"),
         r.getString("estado"));
@@ -445,7 +445,7 @@ public final class JdbcFinanceDao implements FinanceDao {
             r.getLong("id_obligacion"),
             r.getLong("id_acudiente"),
             r.getBigDecimal("monto_pagado"),
-            r.getDate("fecha_pago").toLocalDate(),
+            r.getObject("fecha_pago", LocalDate.class),
             method,
             r.getString("numero_recibo")),
         r.getString("estado_pago"),

@@ -3,6 +3,7 @@ package com.littlehorizons.erp.dao.jdbc;
 import com.littlehorizons.erp.dao.StudentDao;
 import com.littlehorizons.erp.model.*;
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.*;
 
 public final class JdbcStudentDao implements StudentDao {
@@ -79,7 +80,7 @@ public final class JdbcStudentDao implements StudentDao {
                 r.getString("numero_documento"),
                 r.getString("primer_nombre"),
                 r.getString("primer_apellido"),
-                r.getDate("fecha_nacimiento").toLocalDate(),
+                r.getObject("fecha_nacimiento", LocalDate.class),
                 r.getString("direccion"),
                 r.getString("estado")));
   }
@@ -109,7 +110,7 @@ public final class JdbcStudentDao implements StudentDao {
                     r.getString("numero_documento"),
                     r.getString("primer_nombre"),
                     r.getString("primer_apellido"),
-                    r.getDate("fecha_nacimiento").toLocalDate(),
+                    r.getObject("fecha_nacimiento", LocalDate.class),
                     r.getString("direccion"),
                     r.getString("estado")),
             id)
