@@ -11,9 +11,11 @@ public final class JdbcAcademicDao implements AcademicDao {
   public long createTeacher(Connection c, Teacher t) throws SQLException {
     return Jdbc.insert(
         c,
-        "INSERT INTO"
-            + " profesores(numero_documento,primer_nombre,primer_apellido,correo_electronico,especializacion,fecha_contratacion)"
-            + " VALUES(?,?,?,?,?,CURRENT_DATE)",
+        """
+INSERT INTO
+profesores(numero_documento,primer_nombre,primer_apellido,correo_electronico,especializacion,fecha_contratacion)
+ VALUES(?,?,?,?,?,CURRENT_DATE)
+""",
         t.document(),
         t.firstName(),
         t.lastName(),
@@ -61,8 +63,10 @@ public final class JdbcAcademicDao implements AcademicDao {
   public Optional<Long> lockGrade(Connection c, long subject) throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT g.id_grado FROM grados g JOIN materias m ON m.id_grado=g.id_grado WHERE"
-                + " m.id_materia=? AND m.esta_activa=TRUE AND g.esta_activo=TRUE FOR UPDATE",
+            """
+SELECT g.id_grado FROM grados g JOIN materias m ON m.id_grado=g.id_grado WHERE m.id_materia=? AND
+m.esta_activa=TRUE AND g.esta_activo=TRUE FOR UPDATE
+""",
             r -> r.getLong(1),
             subject)
         .stream()
@@ -90,11 +94,12 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON"
-                + " a.id_asignacion=h.id_asignacion JOIN materias m ON m.id_materia=a.id_materia"
-                + " WHERE a.esta_activa=TRUE AND a.año_academico=? AND h.dia_semana=? AND"
-                + " h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR (m.id_grado=? AND"
-                + " a.seccion=? AND a.esta_activa=TRUE))",
+            """
+SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
+materias m ON m.id_materia=a.id_materia WHERE a.esta_activa=TRUE AND a.anio_academico=? AND
+h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR (m.id_grado=? AND
+a.seccion=? AND a.esta_activa=TRUE))
+""",
             year,
             day,
             end,
@@ -118,8 +123,10 @@ public final class JdbcAcademicDao implements AcademicDao {
     var assignments =
         Jdbc.query(
             c,
-            "SELECT id_asignacion FROM asignaciones_profesor WHERE id_profesor=? AND id_materia=?"
-                + " AND año_academico=? AND seccion=?",
+            """
+SELECT id_asignacion FROM asignaciones_profesor WHERE id_profesor=? AND id_materia=? AND
+anio_academico=? AND seccion=?
+""",
             r -> r.getLong(1),
             teacher,
             subject,
@@ -129,8 +136,9 @@ public final class JdbcAcademicDao implements AcademicDao {
         assignments.isEmpty()
             ? Jdbc.insert(
                 c,
-                "INSERT INTO asignaciones_profesor(id_profesor,id_materia,año_academico,seccion)"
-                    + " VALUES(?,?,?,?)",
+                """
+INSERT INTO asignaciones_profesor(id_profesor,id_materia,anio_academico,seccion) VALUES(?,?,?,?)
+""",
                 teacher,
                 subject,
                 year,
@@ -151,12 +159,13 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM matriculas mt JOIN materias m ON m.id_grado=mt.id_grado JOIN"
-                + " estudiantes e ON e.id_estudiante=mt.id_estudiante WHERE mt.id_estudiante=? AND"
-                + " m.id_materia=? AND mt.año_academico=? AND mt.estado_matricula='Activa' AND"
-                + " e.estado='Activo' AND m.esta_activa=TRUE AND EXISTS(SELECT 1 FROM"
-                + " asignaciones_profesor a WHERE a.id_materia=m.id_materia AND"
-                + " a.año_academico=mt.año_academico AND a.seccion=? AND a.esta_activa=TRUE)",
+            """
+SELECT COUNT(*) FROM matriculas mt JOIN materias m ON m.id_grado=mt.id_grado JOIN estudiantes e ON
+e.id_estudiante=mt.id_estudiante WHERE mt.id_estudiante=? AND m.id_materia=? AND mt.anio_academico=?
+AND mt.estado_matricula='Activa' AND e.estado='Activo' AND m.esta_activa=TRUE AND EXISTS(SELECT 1
+FROM asignaciones_profesor a WHERE a.id_materia=m.id_materia AND a.anio_academico=mt.anio_academico
+AND a.seccion=? AND a.esta_activa=TRUE)
+""",
             student,
             subject,
             year,
@@ -169,9 +178,11 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     Jdbc.update(
         c,
-        "INSERT INTO"
-            + " inscripciones_materia(id_estudiante,id_materia,año_academico,periodo_academico,seccion,fecha_inscripcion)"
-            + " VALUES(?,?,?,?,?,CURRENT_DATE)",
+        """
+INSERT INTO
+inscripciones_materia(id_estudiante,id_materia,anio_academico,periodo_academico,seccion,fecha_inscripcion)
+ VALUES(?,?,?,?,?,CURRENT_DATE)
+""",
         student,
         subject,
         year,
@@ -184,16 +195,16 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM inscripciones_materia i JOIN asignaciones_profesor a ON"
-                + " a.id_materia=i.id_materia AND a.año_academico=i.año_academico AND"
-                + " a.seccion=i.seccion JOIN profesores p ON p.id_profesor=a.id_profesor JOIN"
-                + " materias m ON m.id_materia=i.id_materia JOIN matriculas mt ON"
-                + " mt.id_estudiante=i.id_estudiante AND mt.año_academico=i.año_academico AND"
-                + " mt.id_grado=m.id_grado JOIN estudiantes e ON e.id_estudiante=i.id_estudiante"
-                + " WHERE i.id_estudiante=? AND i.id_materia=? AND a.id_profesor=? AND"
-                + " i.año_academico=? AND i.periodo_academico=? AND i.estado='Activa' AND"
-                + " p.estado='Activo' AND mt.estado_matricula='Activa' AND e.estado='Activo' AND"
-                + " m.esta_activa=TRUE AND a.esta_activa=TRUE",
+            """
+SELECT COUNT(*) FROM inscripciones_materia i JOIN asignaciones_profesor a ON
+a.id_materia=i.id_materia AND a.anio_academico=i.anio_academico AND a.seccion=i.seccion JOIN
+profesores p ON p.id_profesor=a.id_profesor JOIN materias m ON m.id_materia=i.id_materia JOIN
+matriculas mt ON mt.id_estudiante=i.id_estudiante AND mt.anio_academico=i.anio_academico AND
+mt.id_grado=m.id_grado JOIN estudiantes e ON e.id_estudiante=i.id_estudiante WHERE i.id_estudiante=?
+AND i.id_materia=? AND a.id_profesor=? AND i.anio_academico=? AND i.periodo_academico=? AND
+i.estado='Activa' AND p.estado='Activo' AND mt.estado_matricula='Activa' AND e.estado='Activo' AND
+m.esta_activa=TRUE AND a.esta_activa=TRUE
+""",
             student,
             subject,
             teacher,
@@ -205,10 +216,11 @@ public final class JdbcAcademicDao implements AcademicDao {
   public void saveGrade(Connection c, AcademicRecord r) throws SQLException {
     Jdbc.update(
         c,
-        "INSERT INTO"
-            + " registros_academicos(id_estudiante,id_materia,id_profesor,año_academico,periodo_academico,valor_nota,fecha_registro)"
-            + " VALUES(?,?,?,?,?,?,CURRENT_DATE) ON DUPLICATE KEY UPDATE"
-            + " valor_nota=?,id_profesor=?",
+        """
+INSERT INTO
+registros_academicos(id_estudiante,id_materia,id_profesor,anio_academico,periodo_academico,valor_nota,fecha_registro)
+ VALUES(?,?,?,?,?,?,CURRENT_DATE) ON DUPLICATE KEY UPDATE valor_nota=?,id_profesor=?
+""",
         r.studentId(),
         r.subjectId(),
         r.teacherId(),
@@ -231,10 +243,12 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     Jdbc.update(
         c,
-        "INSERT INTO"
-            + " asistencias(id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,año_academico,periodo_academico)"
-            + " VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE"
-            + " estado_asistencia=?,registrado_por=?,año_academico=?,periodo_academico=?",
+        """
+INSERT INTO
+asistencias(id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,anio_academico,periodo_academico)
+ VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+estado_asistencia=?,registrado_por=?,anio_academico=?,periodo_academico=?
+""",
         student,
         subject,
         date,
@@ -251,14 +265,16 @@ public final class JdbcAcademicDao implements AcademicDao {
   public List<AcademicRecord> history(Connection c, long student) throws SQLException {
     return Jdbc.query(
         c,
-        "SELECT * FROM registros_academicos WHERE id_estudiante=? ORDER BY"
-            + " año_academico,id_materia,periodo_academico",
+        """
+        SELECT * FROM registros_academicos WHERE id_estudiante=? ORDER BY
+        anio_academico,id_materia,periodo_academico
+        """,
         r ->
             new AcademicRecord(
                 r.getLong("id_estudiante"),
                 r.getLong("id_materia"),
                 r.getLong("id_profesor"),
-                r.getInt("año_academico"),
+                r.getInt("anio_academico"),
                 "Final".equals(r.getString("periodo_academico"))
                     ? AcademicPeriod.FINAL
                     : AcademicPeriod.valueOf(r.getString("periodo_academico")),
@@ -268,14 +284,27 @@ public final class JdbcAcademicDao implements AcademicDao {
 
   public List<String> absenceReport(Connection c, LocalDate start, LocalDate end, int threshold)
       throws SQLException {
+    return absenceCounts(c, start, end).stream()
+        .filter(summary -> summary.absentClasses() > threshold)
+        .map(
+            summary ->
+                "Estudiante %d: %d ausencias"
+                    .formatted(summary.studentId(), summary.absentClasses()))
+        .toList();
+  }
+
+  public List<AbsenceSummary> absenceCounts(Connection c, LocalDate start, LocalDate end)
+      throws SQLException {
     return Jdbc.query(
         c,
-        "SELECT id_estudiante,COUNT(*) FROM asistencias WHERE fecha_asistencia BETWEEN ? AND ? AND"
-            + " estado_asistencia='Ausente' GROUP BY id_estudiante HAVING COUNT(*)>?",
-        r -> "Estudiante " + r.getLong(1) + ": " + r.getLong(2) + " ausencias",
+        """
+        SELECT id_estudiante,COUNT(*) FROM asistencias
+        WHERE fecha_asistencia BETWEEN ? AND ? AND estado_asistencia='Ausente'
+        GROUP BY id_estudiante ORDER BY id_estudiante
+        """,
+        r -> new AbsenceSummary(r.getLong(1), r.getLong(2)),
         start,
-        end,
-        threshold);
+        end);
   }
 
   public BigDecimal courseAverage(
@@ -283,11 +312,12 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT AVG(r.valor_nota) FROM registros_academicos r JOIN inscripciones_materia i ON"
-                + " i.id_estudiante=r.id_estudiante AND i.id_materia=r.id_materia AND"
-                + " i.año_academico=r.año_academico AND i.periodo_academico=r.periodo_academico"
-                + " WHERE r.id_materia=? AND r.año_academico=? AND r.periodo_academico=? AND"
-                + " i.seccion=?",
+            """
+SELECT AVG(r.valor_nota) FROM registros_academicos r JOIN inscripciones_materia i ON
+i.id_estudiante=r.id_estudiante AND i.id_materia=r.id_materia AND i.anio_academico=r.anio_academico
+AND i.periodo_academico=r.periodo_academico WHERE r.id_materia=? AND r.anio_academico=? AND
+r.periodo_academico=? AND i.seccion=?
+""",
             r -> r.getBigDecimal(1),
             subject,
             year,
@@ -299,7 +329,9 @@ public final class JdbcAcademicDao implements AcademicDao {
   public Optional<Teacher> teacher(Connection c, long id, boolean lock) throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT * FROM profesores WHERE id_profesor=?" + (lock ? " FOR UPDATE" : ""),
+            lock
+                ? "SELECT * FROM profesores WHERE id_profesor=? FOR UPDATE"
+                : "SELECT * FROM profesores WHERE id_profesor=?",
             r ->
                 new Teacher(
                     r.getLong("id_profesor"),
@@ -317,7 +349,9 @@ public final class JdbcAcademicDao implements AcademicDao {
   public Optional<Subject> subject(Connection c, long id, boolean lock) throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT * FROM materias WHERE id_materia=?" + (lock ? " FOR UPDATE" : ""),
+            lock
+                ? "SELECT * FROM materias WHERE id_materia=? FOR UPDATE"
+                : "SELECT * FROM materias WHERE id_materia=?",
             r ->
                 new Subject(
                     r.getLong("id_materia"),
@@ -333,9 +367,11 @@ public final class JdbcAcademicDao implements AcademicDao {
   public int updateTeacher(Connection c, Teacher t) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE profesores SET"
-            + " numero_documento=?,primer_nombre=?,primer_apellido=?,correo_electronico=?,especializacion=?,estado=?"
-            + " WHERE id_profesor=?",
+        """
+UPDATE profesores SET
+numero_documento=?,primer_nombre=?,primer_apellido=?,correo_electronico=?,especializacion=?,estado=?
+WHERE id_profesor=?
+""",
         t.document(),
         t.firstName(),
         t.lastName(),
@@ -348,8 +384,9 @@ public final class JdbcAcademicDao implements AcademicDao {
   public int updateSubject(Connection c, Subject s) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE materias SET codigo_materia=?,nombre_materia=?,id_grado=?,esta_activa=? WHERE"
-            + " id_materia=?",
+        """
+UPDATE materias SET codigo_materia=?,nombre_materia=?,id_grado=?,esta_activa=? WHERE id_materia=?
+""",
         s.code(),
         s.name(),
         s.gradeId(),
@@ -360,9 +397,11 @@ public final class JdbcAcademicDao implements AcademicDao {
   public boolean subjectHasHistory(Connection c, long id) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT (SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=?)+(SELECT"
-                + " COUNT(*) FROM asignaciones_profesor WHERE id_materia=?)+(SELECT COUNT(*) FROM"
-                + " registros_academicos WHERE id_materia=?)",
+            """
+SELECT EXISTS(SELECT 1 FROM inscripciones_materia WHERE id_materia=?) OR EXISTS(SELECT 1 FROM
+asignaciones_profesor WHERE id_materia=?) OR EXISTS(SELECT 1 FROM registros_academicos WHERE
+id_materia=?)
+""",
             id,
             id,
             id)
@@ -374,7 +413,7 @@ public final class JdbcAcademicDao implements AcademicDao {
         r.getLong("id_asignacion"),
         r.getLong("id_profesor"),
         r.getLong("id_materia"),
-        r.getInt("año_academico"),
+        r.getInt("anio_academico"),
         r.getString("seccion"),
         r.getBoolean("esta_activa"));
   }
@@ -388,8 +427,9 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.query(
             c,
-            "SELECT * FROM asignaciones_profesor WHERE id_asignacion=?"
-                + (lock ? " FOR UPDATE" : ""),
+            lock
+                ? "SELECT * FROM asignaciones_profesor WHERE id_asignacion=? FOR UPDATE"
+                : "SELECT * FROM asignaciones_profesor WHERE id_asignacion=?",
             this::assignment,
             id)
         .stream()
@@ -399,9 +439,10 @@ public final class JdbcAcademicDao implements AcademicDao {
   public int updateAssignment(Connection c, TeachingAssignment a) throws SQLException {
     return Jdbc.update(
         c,
-        "UPDATE asignaciones_profesor SET"
-            + " id_profesor=?,id_materia=?,año_academico=?,seccion=?,esta_activa=? WHERE"
-            + " id_asignacion=?",
+        """
+UPDATE asignaciones_profesor SET id_profesor=?,id_materia=?,anio_academico=?,seccion=?,esta_activa=?
+WHERE id_asignacion=?
+""",
         a.teacherId(),
         a.subjectId(),
         a.year(),
@@ -413,8 +454,9 @@ public final class JdbcAcademicDao implements AcademicDao {
   public boolean assignmentHasHistory(Connection c, TeachingAssignment a) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND año_academico=? AND"
-                + " seccion=?",
+            """
+SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND anio_academico=? AND seccion=?
+""",
             a.subjectId(),
             a.year(),
             a.section())
@@ -467,11 +509,12 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON"
-                + " a.id_asignacion=h.id_asignacion JOIN materias m ON m.id_materia=a.id_materia"
-                + " WHERE h.id_horario<>? AND a.esta_activa=TRUE AND a.año_academico=? AND"
-                + " h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR"
-                + " (m.id_grado=? AND a.seccion=?))",
+            """
+SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
+materias m ON m.id_materia=a.id_materia WHERE h.id_horario<>? AND a.esta_activa=TRUE AND
+a.anio_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR
+(m.id_grado=? AND a.seccion=?))
+""",
             excluded,
             year,
             day,
@@ -488,7 +531,7 @@ public final class JdbcAcademicDao implements AcademicDao {
         r.getLong("id_inscripcion"),
         r.getLong("id_estudiante"),
         r.getLong("id_materia"),
-        r.getInt("año_academico"),
+        r.getInt("anio_academico"),
         AcademicPeriod.valueOf(r.getString("periodo_academico")),
         r.getString("seccion"),
         r.getString("estado"));
@@ -524,10 +567,11 @@ public final class JdbcAcademicDao implements AcademicDao {
   public boolean subscriptionHasHistory(Connection c, Subscription s) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT (SELECT COUNT(*) FROM registros_academicos WHERE id_estudiante=? AND"
-                + " id_materia=? AND año_academico=? AND periodo_academico=?)+(SELECT COUNT(*) FROM"
-                + " asistencias WHERE id_estudiante=? AND id_materia=? AND año_academico=? AND"
-                + " periodo_academico=?)",
+            """
+SELECT EXISTS(SELECT 1 FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND
+anio_academico=? AND periodo_academico=?) OR EXISTS(SELECT 1 FROM asistencias WHERE id_estudiante=? AND
+id_materia=? AND anio_academico=? AND periodo_academico=?)
+""",
             s.studentId(),
             s.subjectId(),
             s.year(),
@@ -549,7 +593,7 @@ public final class JdbcAcademicDao implements AcademicDao {
                 r.getLong("id_estudiante"),
                 r.getLong("id_materia"),
                 r.getLong("registrado_por"),
-                r.getInt("año_academico"),
+                r.getInt("anio_academico"),
                 AcademicPeriod.valueOf(r.getString("periodo_academico")),
                 r.getObject("fecha_asistencia", LocalDate.class),
                 Arrays.stream(AttendanceStatus.values())
@@ -574,8 +618,10 @@ public final class JdbcAcademicDao implements AcademicDao {
       throws SQLException {
     return Jdbc.update(
         c,
-        "DELETE FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND"
-            + " año_academico=? AND periodo_academico=?",
+        """
+DELETE FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND anio_academico=? AND
+periodo_academico=?
+""",
         student,
         subject,
         year,

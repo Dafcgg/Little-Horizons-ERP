@@ -14,10 +14,6 @@ final class ConsoleFormatter {
     return type == BorrowerType.STUDENT ? "estudiante" : "profesor";
   }
 
-  private static String description(String value) {
-    return value == null || value.isEmpty() ? "" : " | Descripción: " + value;
-  }
-
   static String format(Object value) {
     if (value instanceof Student s)
       return "Estudiante #"
@@ -173,13 +169,14 @@ final class ConsoleFormatter {
           + c.id()
           + " | "
           + c.name()
+          + " | Descripción: "
+          + java.util.Objects.toString(c.description(), "")
           + " | Profesor: "
           + c.teacherId()
           + " | Cupo: "
           + c.capacity()
           + " | Activo: "
-          + yes(c.active())
-          + description(c.description());
+          + yes(c.active());
     if (value instanceof ClubMembership m)
       return "Membresía #"
           + m.id()
@@ -196,6 +193,8 @@ final class ConsoleFormatter {
           + e.id()
           + " | "
           + e.name()
+          + " | Descripción: "
+          + java.util.Objects.toString(e.description(), "")
           + " | Fecha: "
           + e.date()
           + " | Tipo: "
@@ -203,8 +202,7 @@ final class ConsoleFormatter {
           + " | Competencia: "
           + yes(e.competitive())
           + " | Activo: "
-          + yes(e.active())
-          + description(e.description());
+          + yes(e.active());
     if (value instanceof EventParticipation p)
       return "Evento: "
           + p.eventId()

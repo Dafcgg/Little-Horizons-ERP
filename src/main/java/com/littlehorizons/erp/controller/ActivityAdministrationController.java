@@ -79,10 +79,10 @@ public final class ActivityAdministrationController {
         new Club(
             c.id(),
             view.edit("Nombre", c.name()),
+            editDescription(c.description()),
             view.editId("ID profesor", c.teacherId()),
             view.editInteger("Cupo", c.capacity(), 1, 10000),
-            view.editFlag("¿Activo?", c.active()),
-            editDescription(c.description())));
+            view.editFlag("¿Activo?", c.active())));
     view.show("Club actualizado.");
   }
 
@@ -93,12 +93,12 @@ public final class ActivityAdministrationController {
         new SchoolEvent(
             e.id(),
             view.edit("Nombre", e.name()),
+            editDescription(e.description()),
             view.editDate("Fecha", e.date()),
             view.option(
                 "Tipo", List.of("Académico", "Cultural", "Deportivo", "Social", "Científico")),
             view.editFlag("¿Competencia?", e.competitive()),
-            view.editFlag("¿Activo?", e.active()),
-            editDescription(e.description())));
+            view.editFlag("¿Activo?", e.active())));
     view.show("Evento actualizado.");
   }
 }

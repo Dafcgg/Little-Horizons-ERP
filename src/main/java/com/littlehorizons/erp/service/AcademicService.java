@@ -5,14 +5,21 @@ import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.util.ConnectionProvider;
 import java.math.*;
 import java.time.*;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 public final class AcademicService extends TransactionalService {
   private final AcademicDao dao;
+  private final Clock clock;
 
   public AcademicService(ConnectionProvider connections, AcademicDao dao) {
+    this(connections, dao, Clock.system(ZoneId.of("America/Bogota")));
+  }
+
+  public AcademicService(ConnectionProvider connections, AcademicDao dao, Clock clock) {
     super(connections);
     this.dao = dao;
+    this.clock = Objects.requireNonNull(clock);
   }
 
   public long registerTeacher(Teacher teacher) {
@@ -217,11 +224,22 @@ public final class AcademicService extends TransactionalService {
                 .divide(BigDecimal.valueOf(grades.size()), 1, RoundingMode.HALF_UP));
   }
 
+  public List<String> currentWeekAbsences() {
+    LocalDate start = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    return absences(start, start.plusDays(6), 3);
+  }
+
   public List<String> absences(LocalDate start, LocalDate end, int threshold) {
     require(
         isDatabaseDate(start) && isDatabaseDate(end) && !start.isAfter(end) && threshold >= 0,
         "Rango o umbral inválido.");
-    return transaction(c -> dao.absenceReport(c, start, end, threshold));
+    return transaction(c -> dao.absenceCounts(c, start, end)).stream()
+        .filter(summary -> summary.absentClasses() > threshold)
+        .map(
+            summary ->
+                "Estudiante %d: %d clases ausentes acumuladas"
+                    .formatted(summary.studentId(), summary.absentClasses()))
+        .toList();
   }
 
   public Teacher teacher(long id) {

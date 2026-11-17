@@ -5,6 +5,15 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public final class DatabaseConnection implements ConnectionProvider {
+  private static final DatabaseConnection INSTANCE = new DatabaseConnection();
+
+  private DatabaseConnection() {}
+
+  public static DatabaseConnection getInstance() {
+    return INSTANCE;
+  }
+
+  @Override
   public Connection open() throws SQLException {
     String password = System.getenv("ERP_DB_PASSWORD");
     if (password == null)

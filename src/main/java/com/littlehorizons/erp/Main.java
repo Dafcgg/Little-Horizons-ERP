@@ -22,7 +22,7 @@ public final class Main {
     }
     run(
         new ConsoleView(System.in, System.out),
-        new DatabaseConnection(),
+        DatabaseConnection.getInstance(),
         new PdfInvoiceGenerator(
             Path.of(System.getenv().getOrDefault("ERP_INVOICE_DIR", "invoices"))));
   }

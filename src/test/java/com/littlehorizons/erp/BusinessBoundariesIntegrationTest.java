@@ -99,7 +99,7 @@ class BusinessBoundariesIntegrationTest {
     }
     List<String> report = academics.absences(from, from.plusDays(3), 3);
     assertFalse(report.stream().anyMatch(row -> row.startsWith("Estudiante " + first + ":")));
-    assertTrue(report.contains("Estudiante " + second + ": 4 ausencias"));
+    assertTrue(report.contains("Estudiante " + second + ": 4 clases ausentes acumuladas"));
   }
 
   @Test

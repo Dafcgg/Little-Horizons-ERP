@@ -2,6 +2,12 @@
 /target/
 /invoices/
 /error_log.txt*
+*.class
+error_log.txt
+*.log
+invoices/*.pdf
+facturas/*.pdf
+*.tmp
 
 # Local credentials and editor settings
 .env
@@ -19,6 +25,7 @@ Thumbs.db
 !/docs/migrations/
 /docs/migrations/*
 !/docs/migrations/002_complete_crud.sql
+!/docs/migrations/003_ascii_academic_year.sql
 
 # Historical repository simulation helper
 /scripts/prepare-delivery.sh

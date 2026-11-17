@@ -5,6 +5,7 @@ import java.sql.*;
 import java.util.*;
 
 public interface ActivityDao {
+  /** Persists the club details, including its description. */
   long createClub(Connection c, Club club) throws SQLException;
 
   List<Club> clubs(Connection c) throws SQLException;
@@ -19,6 +20,7 @@ public interface ActivityDao {
 
   int withdraw(Connection c, long club, long student) throws SQLException;
 
+  /** Persists the event details, including its description. */
   long createEvent(Connection c, SchoolEvent event) throws SQLException;
 
   List<SchoolEvent> events(Connection c) throws SQLException;
@@ -29,6 +31,7 @@ public interface ActivityDao {
 
   Optional<Club> club(Connection c, long id, boolean lock) throws SQLException;
 
+  /** Updates the club details and description without replacing membership history. */
   int updateClub(Connection c, Club club) throws SQLException;
 
   void retireMembers(Connection c, long club) throws SQLException;
@@ -46,6 +49,7 @@ public interface ActivityDao {
 
   Optional<SchoolEvent> event(Connection c, long id, boolean lock) throws SQLException;
 
+  /** Updates the event details and description without replacing participation history. */
   int updateEvent(Connection c, SchoolEvent event) throws SQLException;
 
   boolean hasPositions(Connection c, long event) throws SQLException;

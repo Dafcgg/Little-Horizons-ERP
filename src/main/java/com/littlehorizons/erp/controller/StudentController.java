@@ -45,6 +45,10 @@ public final class StudentController {
         new Action(
             "Matricular por grado y año",
             () -> {
+              view.show(
+                  "Los niveles van de Preescolar (0) a Once (11). Las variantes A/B del catálogo"
+                      + " representan secciones de demostración del mismo nivel; consulte su ID"
+                      + " en Administración > Grados y categorías > Grados.");
               service.enroll(view.id("ID estudiante"), view.id("ID grado"), view.year());
               view.show("Matrícula registrada.");
             }));

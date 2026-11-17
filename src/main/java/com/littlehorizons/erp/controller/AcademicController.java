@@ -129,12 +129,15 @@ public final class AcademicController {
                         .map(Object::toString)
                         .orElse("Sin notas"))),
         new Action(
-            "Reporte de inasistencias",
+            "Reporte de inasistencias: Semana actual (más de 3 ausencias, lunes a domingo)",
+            () -> view.showAll(service.currentWeekAbsences())),
+        new Action(
+            "Reporte de inasistencias por rango y umbral personalizados",
             () ->
                 view.showAll(
                     service.absences(
                         view.date("Desde"),
                         view.date("Hasta"),
-                        view.integer("Más de cuántas ausencias", 0, 1000)))));
+                        view.integer("Más de cuántas clases ausentes acumuladas", 0, 1000)))));
   }
 }

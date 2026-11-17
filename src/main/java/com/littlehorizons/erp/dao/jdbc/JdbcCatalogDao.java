@@ -15,17 +15,22 @@ public final class JdbcCatalogDao implements CatalogDao {
   }
 
   public List<CatalogEntry> list(Connection c, CatalogType t) throws SQLException {
-    return Jdbc.query(c, "SELECT * FROM " + t.table() + " ORDER BY " + t.id(), r -> map(r, t));
+    String sql =
+        switch (t) {
+          case GRADE -> "SELECT * FROM grados ORDER BY id_grado";
+          case RESOURCE_CATEGORY -> "SELECT * FROM categorias_recurso ORDER BY id_categoria";
+        };
+    return Jdbc.query(c, sql, r -> map(r, t));
   }
 
   public Optional<CatalogEntry> lock(Connection c, CatalogType t, long id) throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM " + t.table() + " WHERE " + t.id() + "=? FOR UPDATE",
-            r -> map(r, t),
-            id)
-        .stream()
-        .findFirst();
+    String sql =
+        switch (t) {
+          case GRADE -> "SELECT * FROM grados WHERE id_grado=? FOR UPDATE";
+          case RESOURCE_CATEGORY ->
+              "SELECT * FROM categorias_recurso WHERE id_categoria=? FOR UPDATE";
+        };
+    return Jdbc.query(c, sql, r -> map(r, t), id).stream().findFirst();
   }
 
   public long create(Connection c, CatalogType t, CatalogEntry e) throws SQLException {
@@ -56,8 +61,10 @@ public final class JdbcCatalogDao implements CatalogDao {
     return t == CatalogType.GRADE
         ? Jdbc.count(
                 c,
-                "SELECT (SELECT COUNT(*) FROM matriculas WHERE id_grado=?)+(SELECT COUNT(*) FROM"
-                    + " materias WHERE id_grado=?)",
+                """
+                SELECT EXISTS(SELECT 1 FROM matriculas WHERE id_grado=?)
+                    OR EXISTS(SELECT 1 FROM materias WHERE id_grado=?)
+                """,
                 id,
                 id)
             > 0

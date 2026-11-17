@@ -137,7 +137,10 @@ public final class ActivityService extends TransactionalService {
           Club club =
               dao.club(c, id, true).orElseThrow(() -> new BusinessException("Club inexistente."));
           dao.retireMembers(c, id);
-          dao.updateClub(c, new Club(id, club.name(), club.teacherId(), club.capacity(), false));
+          dao.updateClub(
+              c,
+              new Club(
+                  id, club.name(), club.description(), club.teacherId(), club.capacity(), false));
           return null;
         });
   }
@@ -209,7 +212,9 @@ public final class ActivityService extends TransactionalService {
               dao.event(c, id, true)
                   .orElseThrow(() -> new BusinessException("Evento inexistente."));
           dao.updateEvent(
-              c, new SchoolEvent(id, e.name(), e.date(), e.type(), e.competitive(), false));
+              c,
+              new SchoolEvent(
+                  id, e.name(), e.description(), e.date(), e.type(), e.competitive(), false));
           return null;
         });
   }

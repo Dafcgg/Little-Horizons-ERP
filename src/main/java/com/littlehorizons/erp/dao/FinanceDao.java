@@ -53,7 +53,7 @@ public interface FinanceDao {
 
   Optional<Invoice> invoice(Connection c, long id) throws SQLException;
 
-  void pdfStatus(Connection c, long id, String status, String path) throws SQLException;
+  int pdfStatus(Connection c, long id, String status, String path) throws SQLException;
 
   List<Balance> balances(Connection c, LocalDate overdueBefore) throws SQLException;
 
