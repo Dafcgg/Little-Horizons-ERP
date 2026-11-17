@@ -69,7 +69,7 @@ VALUES(?,?,?,TRUE,TRUE)
     Jdbc.update(
         c,
         """
-        INSERT INTO matriculas(id_estudiante,id_grado,año_academico,fecha_matricula)
+        INSERT INTO matriculas(id_estudiante,id_grado,anio_academico,fecha_matricula)
         VALUES(?,?,?,CURRENT_DATE)
         """,
         student,
@@ -251,7 +251,7 @@ WHERE ea.id_estudiante=? AND a.esta_activo=TRUE AND a.id_acudiente<>?
   public List<Enrollment> enrollments(Connection c, long student) throws SQLException {
     return Jdbc.query(
         c,
-        "SELECT * FROM matriculas WHERE id_estudiante=? ORDER BY año_academico",
+        "SELECT * FROM matriculas WHERE id_estudiante=? ORDER BY anio_academico",
         this::enrollment,
         student);
   }
@@ -261,7 +261,7 @@ WHERE ea.id_estudiante=? AND a.esta_activo=TRUE AND a.id_acudiente<>?
         r.getLong("id_matricula"),
         r.getLong("id_estudiante"),
         r.getLong("id_grado"),
-        r.getInt("año_academico"),
+        r.getInt("anio_academico"),
         r.getString("estado_matricula"));
   }
 
@@ -275,7 +275,7 @@ WHERE ea.id_estudiante=? AND a.esta_activo=TRUE AND a.id_acudiente<>?
   public boolean hasSubscriptions(Connection c, long student, int year) throws SQLException {
     return Jdbc.count(
             c,
-            "SELECT COUNT(*) FROM inscripciones_materia WHERE id_estudiante=? AND año_academico=?",
+            "SELECT COUNT(*) FROM inscripciones_materia WHERE id_estudiante=? AND anio_academico=?",
             student,
             year)
         > 0;

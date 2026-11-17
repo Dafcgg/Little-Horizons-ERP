@@ -13,7 +13,7 @@ Incluye operaciones de creación, consulta, edición y baja para las 26 entidade
 ## 3. Autores
 
 - **Dilan Andrés Fonseca Téllez** — desarrollador del proyecto.
-- **Correo electrónico:** [espacio reservado para el correo del autor].
+- **Correo electrónico:** [dfonsecatellez@gmail.com](mailto:dfonsecatellez@gmail.com).
 - **Perfil:** [Dafcgg en GitHub](https://github.com/Dafcgg).
 
 ## 4. Tecnologías Utilizadas
@@ -65,6 +65,10 @@ El script ya contiene `CREATE DATABASE erp_little_horizons`; no cree primero una
 
 Para instalaciones de la fase anterior al CRUD completo existe [docs/migrations/002_complete_crud.sql](docs/migrations/002_complete_crud.sql). Aplíquelo una sola vez a esa versión; no lo aplique después del script completo. Las columnas `descripcion` ya existían en el esquema: esta revisión conecta su uso en Java y completa las semillas.
 
+La columna del año y sus índices usan identificadores ASCII: `anio_academico`. Si la base existente aún utiliza `año_academico`, aplique una sola vez [docs/migrations/003_ascii_academic_year.sql](docs/migrations/003_ascii_academic_year.sql) antes de ejecutar esta versión. La migración renombra las columnas de las seis tablas afectadas y sus índices, conservando datos y restricciones. Si parte de una versión anterior al CRUD completo, aplique primero `002` y después `003`. No aplique estas migraciones tras importar el script completo actual. MySQL confirma cada `ALTER TABLE` por separado; si se interrumpe, revise qué tablas ya se renombraron antes de continuar.
+
+El catálogo conserva los 12 niveles de Preescolar (0) a Once (11). Para completar las 30 filas de demostración incluye variantes A/B del mismo nivel; no son niveles adicionales. Al matricular o cambiar de grado, la consola explica estas variantes. Consulte sus identificadores en **Administración, edición e inactivación → Grados y categorías → Grados → Listar, incluidos inactivos**.
+
 ### 6.2 Variables de entorno / credenciales sin secretos quemados
 
 Cree una cuenta de aplicación con una contraseña propia:
@@ -101,7 +105,7 @@ $env:ERP_INVOICE_DIR='invoices'
 | `ERP_DB_USER` | `little_horizons` por defecto. |
 | `ERP_DB_PASSWORD` | Obligatoria al abrir una conexión; no tiene contraseña predeterminada. |
 | `ERP_INVOICE_DIR` | `invoices` por defecto, relativo al directorio de ejecución. |
-| `ERP_SCHOOL_NAME` / `ERP_SCHOOL_NIT` | Emisor e identificación; valores predeterminados marcados como DEMO/SIMULADO. |
+| `ERP_SCHOOL_NAME` / `ERP_SCHOOL_NIT` | Nombre predeterminado: `Colegio Internacional Little Horizons S.A.S.`; NIT de demostración con sufijo `SIMULADO`. |
 | `ERP_SCHOOL_ADDRESS` / `ERP_SCHOOL_PHONE` / `ERP_SCHOOL_EMAIL` | Datos configurables del emisor; el correo de demostración usa `example.invalid`. |
 
 [.env.example](.env.example) documenta las variables; la aplicación **no carga `.env` automáticamente**. No incluya credenciales reales en el repositorio. `.gitignore` excluye `.env` y sus variantes locales.
@@ -155,7 +159,9 @@ El script levanta un contenedor MySQL 8.0 en un puerto local dinámico, espera u
 
 También puede preparar manualmente una base MySQL aislada e indicar esas seis variables. Sin `ERP_TEST_DB_URL` se omiten las pruebas de integración; sin `ERP_DB_URL` se omite la prueba que abre conexiones reales del Singleton. Por ello, una ejecución sin base no acredita la suite completa. Los informes se guardan en `target/surefire-reports/`.
 
-Verificación completa del 15 de noviembre de 2026: **80 pruebas aprobadas (62 anteriores + 18 nuevas), 0 fallos, 0 errores y 0 omitidas; BUILD SUCCESS con `mvn clean verify`**. Ejecutada con Maven 3.9.9, JDK 21 compilando bytecode Java 17 y MySQL 8.0.46 aislado. Incluye regresiones de PDF, descripciones, préstamos, Singleton, formularios y filtros de reportes. Los nombres únicos del escenario administrativo permiten repetirlo sobre la misma base de pruebas.
+Verificación completa del 16 de noviembre de 2026: **86 pruebas aprobadas (80 anteriores + 6 casos nuevos), 0 fallos, 0 errores y 0 omitidas; BUILD SUCCESS con `mvn clean verify`**. Ejecutada con Maven 3.9.9, JDK 21 compilando bytecode Java 17 y MySQL 8.0.46 aislado, con importación del esquema actual. Incluye regresiones de PDF, descripciones, préstamos, Singleton, formularios, transacciones y reportes. Los nuevos casos verifican la semana de Bogotá, sus límites de lunes y domingo, los cruces de mes/año y el menú con umbral fijo. Los nombres únicos del escenario administrativo permiten repetirlo sobre la misma base de pruebas.
+
+También se importó el SQL de la versión anterior en una segunda base aislada y se aplicó `003_ascii_academic_year.sql`: los checksums de las seis tablas afectadas se conservaron. Sobre esa base migrada, `mvn test` volvió a aprobar las **86 pruebas, sin fallos, errores ni omisiones**.
 
 ### 7.4 Ejecutar JAR
 
@@ -178,7 +184,9 @@ Little-Horizons-ERP/
 ├── .env.example
 ├── docs/
 │   ├── database.sql
-│   └── migrations/002_complete_crud.sql
+│   └── migrations/
+│       ├── 002_complete_crud.sql
+│       └── 003_ascii_academic_year.sql
 ├── scripts/test-integration.sh
 └── src/
     ├── main/java/com/littlehorizons/erp/
@@ -198,12 +206,12 @@ Little-Horizons-ERP/
 | Modelo | Records y enums como `Club`, `SchoolEvent`, `Invoice`, `LoanEntry` y `AbsenceSummary`. |
 | Vista | `ConsoleView` lee entradas; `ConsoleFormatter` presenta los datos en español. |
 | Controlador | `AcademicController`, `ActivityController`, `FinanceController`, `ResourceController` y controladores administrativos coordinan los formularios. |
-| Servicio | Reglas de negocio y reportes en `AcademicService`, `ActivityService`, `FinanceService` y `ResourceService`. `TransactionalService` delimita las transacciones. |
+| Servicio | Reglas de negocio y reportes en `AcademicService`, `ActivityService`, `FinanceService` y `ResourceService`. `TransactionalService` delega la ejecución transaccional. |
 | DAO | Interfaces de persistencia; implementaciones `Jdbc*Dao` con SQL estático parametrizado. `Jdbc` gestiona sentencias y resultados. |
-| Utilidades | `DatabaseConnection`, `ConnectionProvider`, `AppLogger`, `BusinessException`, `InvoiceRenderer` y `PdfInvoiceGenerator`. |
+| Utilidades | `DatabaseConnection`, `ConnectionProvider`, `JdbcTransactionManager`, `AppLogger`, `BusinessException`, `InvoiceRenderer` y `PdfInvoiceGenerator`. |
 | Composición | `Main` construye e inyecta dependencias y abre el menú. |
 
-El flujo es vista → controlador → servicio → DAO → MySQL. El servicio abre/cierra la conexión y confirma o revierte la transacción; los DAO reciben esa conexión y no la cierran ni confirman. No hay SQL en las vistas ni lectura de consola en los DAO.
+El flujo es vista → controlador → servicio → DAO → MySQL. El servicio delimita cada operación y `JdbcTransactionManager` abre/cierra la conexión y confirma o revierte la transacción; los DAO reciben esa conexión y no la cierran ni confirman. Las referencias explícitas a `java.sql` se concentran en DAO y utilidades. Los servicios componen operaciones `Work` sobre la misma conexión, incluidos los ajustes de acudientes y las correcciones de pagos. No hay SQL en las vistas ni lectura de consola en los DAO.
 
 ## 9. Principios y Patrones de Diseño Aplicados
 
@@ -211,7 +219,7 @@ Los fragmentos siguientes proceden de las clases actuales del repositorio; los f
 
 ### 9.1 Principios SOLID
 
-**SRP — responsabilidad única.** `TransactionalService` controla la transacción, `PdfInvoiceGenerator` escribe el documento y `AppLogger` registra errores. Por ejemplo, el registro se concentra en este método real de `AppLogger`:
+**SRP — responsabilidad única.** `JdbcTransactionManager` controla la transacción, `PdfInvoiceGenerator` escribe el documento y `AppLogger` registra errores. Por ejemplo, el registro se concentra en este método real de `AppLogger`:
 
 ```java
 public static void error(String operation, Throwable error) {
@@ -299,8 +307,7 @@ var academicService = new AcademicService(connections, new JdbcAcademicDao());
 
 ```java
 public AcademicService(ConnectionProvider connections, AcademicDao dao) {
-  super(connections);
-  this.dao = dao;
+  this(connections, dao, Clock.system(ZoneId.of("America/Bogota")));
 }
 ```
 
@@ -336,7 +343,7 @@ return transaction(c -> dao.absenceCounts(c, start, end)).stream()
 
 ## 10. Funcionalidades Principales
 
-**Académico.** Gestión de estudiantes, acudientes, grados, profesores, materias, matrículas, asignaciones, horarios e inscripciones. Protección del último acudiente activo y detección de cruces de profesor/grupo. Notas de 0.0 a 5.0 con máximo un decimal; promedios con pesos iguales y `HALF_UP`. El cierre exige los cuatro períodos y se invalida al corregir una nota. Asistencia con presencia, ausencia, tardanza y excusa médica. El reporte aplica un umbral estricto: con 3, muestra **más de tres clases ausentes acumuladas** en el rango, incluso si corresponden a distintas materias el mismo día; no cuenta días distintos ni tardanzas/excusas como ausencias.
+**Académico.** Gestión de estudiantes, acudientes, grados, profesores, materias, matrículas, asignaciones, horarios e inscripciones. Protección del último acudiente activo y detección de cruces de profesor/grupo. Notas de 0.0 a 5.0 con máximo un decimal; promedios con pesos iguales y `HALF_UP`. El cierre exige los cuatro períodos y se invalida al corregir una nota. Asistencia con presencia, ausencia, tardanza y excusa médica. El reporte **Semana actual** satisface el requisito **“>3 ausencias en una semana”**: fija el umbral en 3 y consulta desde el lunes hasta el domingo, ambos incluidos, según la fecha de `America/Bogota`, incluso cuando la semana cruza de mes o año. Excluye a quien tiene exactamente 3 ausencias. Cuenta clases ausentes, incluidas distintas materias el mismo día; no cuenta días distintos ni tardanzas/excusas como ausencias. También se conserva un reporte por rango y umbral personalizados para otras consultas.
 
 **Extracurricular.** Clubes y eventos con nombre y descripción en creación, consulta, listado y edición. Asignación de profesor, control de cupos, membresías y retiro/reactivación conservando historial. La inactivación del club retira sus miembros activos. Eventos con fecha, lugar, tipo, carácter competitivo y participantes; las posiciones solo se permiten en competencias. La descripción se conserva al desactivar o reactivar.
 
@@ -348,7 +355,7 @@ return transaction(c -> dao.absenceCounts(c, start, end)).stream()
 
 `BusinessException` expresa validaciones recuperables con mensajes en español. `AppLogger` registra las causas técnicas mediante `java.util.logging` en `error_log.txt`, con UTF-8, límite aproximado de 1 MB y un archivo de rotación. Si no puede abrirse el log al iniciar, `Main` informa y termina. Los fallos deliberados de pruebas pueden producir entradas de error esperadas sin representar fallos de la suite.
 
-`TransactionalService` configura `READ_COMMITTED`, desactiva autocommit, ejecuta commit al completar y rollback ante error SQL, excepción de ejecución o `Error`. Si el rollback también falla, esa causa queda suprimida en la excepción original. Conexiones, sentencias, resultados y documentos se cierran con `try-with-resources`.
+`JdbcTransactionManager` configura `READ_COMMITTED`, desactiva autocommit, ejecuta commit al completar y rollback ante error SQL, excepción de ejecución o `Error`. Si el rollback también falla, esa causa queda suprimida en la excepción original. `TransactionalService` delega en esta utilidad sin importar `java.sql`. Conexiones, sentencias, resultados y documentos se cierran con `try-with-resources`.
 
 El pago y la factura se confirman **antes** de escribir el PDF. Una escritura fallida no repite la transacción financiera: registra el fallo y guarda `Fallida`. Si esa actualización afecta cero filas o no puede persistirse, el servicio registra el problema y lanza `BusinessException`, indicando que se regenere la factura y no se registre otro pago. El marcado exitoso también verifica las filas actualizadas y el estado de negocio de la factura.
 
@@ -388,7 +395,7 @@ Préstamo #34 | Tipo: estudiante | Solicitante: 1 | Recurso: 35 | Vencimiento: 2
 Texto extraído con PDFBox de `invoices/factura_000001.pdf`, generado por `PdfInvoiceGenerator` a partir de la factura de demostración de la semilla:
 
 ```text
-Colegio Internacional Little Horizons S.A.S. (DEMO)
+Colegio Internacional Little Horizons S.A.S.
 NIT: 900000000-0 (SIMULADO)
 Calle de demostracion 123, Bogota
 0000000000 | colegio@example.invalid
@@ -433,7 +440,7 @@ El proyecto se distribuye bajo **MIT License**. El texto completo, con atribuci�
 ## 16. Contacto
 
 - **Autor y desarrollador:** Dilan Andrés Fonseca Téllez.
-- **Correo:** [espacio reservado para el correo del autor].
+- **Correo:** [dfonsecatellez@gmail.com](mailto:dfonsecatellez@gmail.com).
 - **GitHub:** [Dafcgg](https://github.com/Dafcgg).
 - **Repositorio:** [Little-Horizons-ERP](https://github.com/Dafcgg/Little-Horizons-ERP).
 - **Incidencias:** [Issues del proyecto](https://github.com/Dafcgg/Little-Horizons-ERP/issues).

@@ -65,6 +65,9 @@ public final class StudentAdministrationController {
         new Action(
             "Editar grado / estado de matrícula",
             () -> {
+              view.show(
+                  "Las variantes A/B son secciones de demostración del mismo nivel (0–11). Consulte"
+                      + " el ID del grado en Administración > Grados y categorías > Grados.");
               service.updateEnrollment(
                   view.id("ID matrícula"),
                   view.id("ID grado"),

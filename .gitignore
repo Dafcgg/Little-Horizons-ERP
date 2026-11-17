@@ -25,6 +25,7 @@ Thumbs.db
 !/docs/migrations/
 /docs/migrations/*
 !/docs/migrations/002_complete_crud.sql
+!/docs/migrations/003_ascii_academic_year.sql
 
 # Historical repository simulation helper
 /scripts/prepare-delivery.sh

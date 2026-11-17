@@ -96,7 +96,7 @@ m.esta_activa=TRUE AND g.esta_activo=TRUE FOR UPDATE
             c,
             """
 SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
-materias m ON m.id_materia=a.id_materia WHERE a.esta_activa=TRUE AND a.año_academico=? AND
+materias m ON m.id_materia=a.id_materia WHERE a.esta_activa=TRUE AND a.anio_academico=? AND
 h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR (m.id_grado=? AND
 a.seccion=? AND a.esta_activa=TRUE))
 """,
@@ -125,7 +125,7 @@ a.seccion=? AND a.esta_activa=TRUE))
             c,
             """
 SELECT id_asignacion FROM asignaciones_profesor WHERE id_profesor=? AND id_materia=? AND
-año_academico=? AND seccion=?
+anio_academico=? AND seccion=?
 """,
             r -> r.getLong(1),
             teacher,
@@ -137,7 +137,7 @@ año_academico=? AND seccion=?
             ? Jdbc.insert(
                 c,
                 """
-INSERT INTO asignaciones_profesor(id_profesor,id_materia,año_academico,seccion) VALUES(?,?,?,?)
+INSERT INTO asignaciones_profesor(id_profesor,id_materia,anio_academico,seccion) VALUES(?,?,?,?)
 """,
                 teacher,
                 subject,
@@ -161,9 +161,9 @@ INSERT INTO asignaciones_profesor(id_profesor,id_materia,año_academico,seccion)
             c,
             """
 SELECT COUNT(*) FROM matriculas mt JOIN materias m ON m.id_grado=mt.id_grado JOIN estudiantes e ON
-e.id_estudiante=mt.id_estudiante WHERE mt.id_estudiante=? AND m.id_materia=? AND mt.año_academico=?
+e.id_estudiante=mt.id_estudiante WHERE mt.id_estudiante=? AND m.id_materia=? AND mt.anio_academico=?
 AND mt.estado_matricula='Activa' AND e.estado='Activo' AND m.esta_activa=TRUE AND EXISTS(SELECT 1
-FROM asignaciones_profesor a WHERE a.id_materia=m.id_materia AND a.año_academico=mt.año_academico
+FROM asignaciones_profesor a WHERE a.id_materia=m.id_materia AND a.anio_academico=mt.anio_academico
 AND a.seccion=? AND a.esta_activa=TRUE)
 """,
             student,
@@ -180,7 +180,7 @@ AND a.seccion=? AND a.esta_activa=TRUE)
         c,
         """
 INSERT INTO
-inscripciones_materia(id_estudiante,id_materia,año_academico,periodo_academico,seccion,fecha_inscripcion)
+inscripciones_materia(id_estudiante,id_materia,anio_academico,periodo_academico,seccion,fecha_inscripcion)
  VALUES(?,?,?,?,?,CURRENT_DATE)
 """,
         student,
@@ -197,11 +197,11 @@ inscripciones_materia(id_estudiante,id_materia,año_academico,periodo_academico,
             c,
             """
 SELECT COUNT(*) FROM inscripciones_materia i JOIN asignaciones_profesor a ON
-a.id_materia=i.id_materia AND a.año_academico=i.año_academico AND a.seccion=i.seccion JOIN
+a.id_materia=i.id_materia AND a.anio_academico=i.anio_academico AND a.seccion=i.seccion JOIN
 profesores p ON p.id_profesor=a.id_profesor JOIN materias m ON m.id_materia=i.id_materia JOIN
-matriculas mt ON mt.id_estudiante=i.id_estudiante AND mt.año_academico=i.año_academico AND
+matriculas mt ON mt.id_estudiante=i.id_estudiante AND mt.anio_academico=i.anio_academico AND
 mt.id_grado=m.id_grado JOIN estudiantes e ON e.id_estudiante=i.id_estudiante WHERE i.id_estudiante=?
-AND i.id_materia=? AND a.id_profesor=? AND i.año_academico=? AND i.periodo_academico=? AND
+AND i.id_materia=? AND a.id_profesor=? AND i.anio_academico=? AND i.periodo_academico=? AND
 i.estado='Activa' AND p.estado='Activo' AND mt.estado_matricula='Activa' AND e.estado='Activo' AND
 m.esta_activa=TRUE AND a.esta_activa=TRUE
 """,
@@ -218,7 +218,7 @@ m.esta_activa=TRUE AND a.esta_activa=TRUE
         c,
         """
 INSERT INTO
-registros_academicos(id_estudiante,id_materia,id_profesor,año_academico,periodo_academico,valor_nota,fecha_registro)
+registros_academicos(id_estudiante,id_materia,id_profesor,anio_academico,periodo_academico,valor_nota,fecha_registro)
  VALUES(?,?,?,?,?,?,CURRENT_DATE) ON DUPLICATE KEY UPDATE valor_nota=?,id_profesor=?
 """,
         r.studentId(),
@@ -245,9 +245,9 @@ registros_academicos(id_estudiante,id_materia,id_profesor,año_academico,periodo
         c,
         """
 INSERT INTO
-asistencias(id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,año_academico,periodo_academico)
+asistencias(id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,anio_academico,periodo_academico)
  VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
-estado_asistencia=?,registrado_por=?,año_academico=?,periodo_academico=?
+estado_asistencia=?,registrado_por=?,anio_academico=?,periodo_academico=?
 """,
         student,
         subject,
@@ -267,14 +267,14 @@ estado_asistencia=?,registrado_por=?,año_academico=?,periodo_academico=?
         c,
         """
         SELECT * FROM registros_academicos WHERE id_estudiante=? ORDER BY
-        año_academico,id_materia,periodo_academico
+        anio_academico,id_materia,periodo_academico
         """,
         r ->
             new AcademicRecord(
                 r.getLong("id_estudiante"),
                 r.getLong("id_materia"),
                 r.getLong("id_profesor"),
-                r.getInt("año_academico"),
+                r.getInt("anio_academico"),
                 "Final".equals(r.getString("periodo_academico"))
                     ? AcademicPeriod.FINAL
                     : AcademicPeriod.valueOf(r.getString("periodo_academico")),
@@ -314,8 +314,8 @@ estado_asistencia=?,registrado_por=?,año_academico=?,periodo_academico=?
             c,
             """
 SELECT AVG(r.valor_nota) FROM registros_academicos r JOIN inscripciones_materia i ON
-i.id_estudiante=r.id_estudiante AND i.id_materia=r.id_materia AND i.año_academico=r.año_academico
-AND i.periodo_academico=r.periodo_academico WHERE r.id_materia=? AND r.año_academico=? AND
+i.id_estudiante=r.id_estudiante AND i.id_materia=r.id_materia AND i.anio_academico=r.anio_academico
+AND i.periodo_academico=r.periodo_academico WHERE r.id_materia=? AND r.anio_academico=? AND
 r.periodo_academico=? AND i.seccion=?
 """,
             r -> r.getBigDecimal(1),
@@ -413,7 +413,7 @@ id_materia=?)
         r.getLong("id_asignacion"),
         r.getLong("id_profesor"),
         r.getLong("id_materia"),
-        r.getInt("año_academico"),
+        r.getInt("anio_academico"),
         r.getString("seccion"),
         r.getBoolean("esta_activa"));
   }
@@ -440,7 +440,7 @@ id_materia=?)
     return Jdbc.update(
         c,
         """
-UPDATE asignaciones_profesor SET id_profesor=?,id_materia=?,año_academico=?,seccion=?,esta_activa=?
+UPDATE asignaciones_profesor SET id_profesor=?,id_materia=?,anio_academico=?,seccion=?,esta_activa=?
 WHERE id_asignacion=?
 """,
         a.teacherId(),
@@ -455,7 +455,7 @@ WHERE id_asignacion=?
     return Jdbc.count(
             c,
             """
-SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND año_academico=? AND seccion=?
+SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND anio_academico=? AND seccion=?
 """,
             a.subjectId(),
             a.year(),
@@ -512,7 +512,7 @@ SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND año_academico
             """
 SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
 materias m ON m.id_materia=a.id_materia WHERE h.id_horario<>? AND a.esta_activa=TRUE AND
-a.año_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR
+a.anio_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR
 (m.id_grado=? AND a.seccion=?))
 """,
             excluded,
@@ -531,7 +531,7 @@ a.año_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (
         r.getLong("id_inscripcion"),
         r.getLong("id_estudiante"),
         r.getLong("id_materia"),
-        r.getInt("año_academico"),
+        r.getInt("anio_academico"),
         AcademicPeriod.valueOf(r.getString("periodo_academico")),
         r.getString("seccion"),
         r.getString("estado"));
@@ -569,8 +569,8 @@ a.año_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (
             c,
             """
 SELECT EXISTS(SELECT 1 FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND
-año_academico=? AND periodo_academico=?) OR EXISTS(SELECT 1 FROM asistencias WHERE id_estudiante=? AND
-id_materia=? AND año_academico=? AND periodo_academico=?)
+anio_academico=? AND periodo_academico=?) OR EXISTS(SELECT 1 FROM asistencias WHERE id_estudiante=? AND
+id_materia=? AND anio_academico=? AND periodo_academico=?)
 """,
             s.studentId(),
             s.subjectId(),
@@ -593,7 +593,7 @@ id_materia=? AND año_academico=? AND periodo_academico=?)
                 r.getLong("id_estudiante"),
                 r.getLong("id_materia"),
                 r.getLong("registrado_por"),
-                r.getInt("año_academico"),
+                r.getInt("anio_academico"),
                 AcademicPeriod.valueOf(r.getString("periodo_academico")),
                 r.getDate("fecha_asistencia").toLocalDate(),
                 Arrays.stream(AttendanceStatus.values())
@@ -619,7 +619,7 @@ id_materia=? AND año_academico=? AND periodo_academico=?)
     return Jdbc.update(
         c,
         """
-DELETE FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND año_academico=? AND
+DELETE FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND anio_academico=? AND
 periodo_academico=?
 """,
         student,

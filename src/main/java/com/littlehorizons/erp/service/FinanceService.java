@@ -3,6 +3,7 @@ package com.littlehorizons.erp.service;
 import com.littlehorizons.erp.dao.FinanceDao;
 import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.util.*;
+import com.littlehorizons.erp.util.JdbcTransactionManager.Work;
 import java.math.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
@@ -114,51 +115,52 @@ public final class FinanceService extends TransactionalService {
 
   public PaymentResult confirmPayment(PaymentRequest input) {
     PaymentRequest request = normalizePayment(input);
-    StoredPayment stored = transaction(c -> savePayment(c, request));
+    StoredPayment stored = transaction(savePayment(request));
     return generate(stored.id(), stored.invoiceId());
   }
 
-  private StoredPayment savePayment(java.sql.Connection c, PaymentRequest request)
-      throws java.sql.SQLException {
-    BigDecimal amount = request.amount();
-    String receipt = request.receipt();
-    LocalDate issueDate = LocalDate.now();
-    Obligation obligation =
-        dao.lockObligation(c, request.obligationId())
-            .orElseThrow(() -> new BusinessException("Obligación inexistente."));
-    require(
-        dao.obligation(c, request.obligationId(), true).orElseThrow().status().equals("Activa"),
-        "La obligación está anulada.");
-    Optional<StoredPayment> existing = dao.findPayment(c, receipt);
-    if (existing.isPresent()) {
+  private Work<StoredPayment> savePayment(PaymentRequest request) {
+    return c -> {
+      BigDecimal amount = request.amount();
+      String receipt = request.receipt();
+      LocalDate issueDate = LocalDate.now();
+      Obligation obligation =
+          dao.lockObligation(c, request.obligationId())
+              .orElseThrow(() -> new BusinessException("Obligación inexistente."));
       require(
-          samePayment(existing.get().request(), request),
-          "El recibo ya existe con datos diferentes.");
+          dao.obligation(c, request.obligationId(), true).orElseThrow().status().equals("Activa"),
+          "La obligación está anulada.");
+      Optional<StoredPayment> existing = dao.findPayment(c, receipt);
+      if (existing.isPresent()) {
+        require(
+            samePayment(existing.get().request(), request),
+            "El recibo ya existe con datos diferentes.");
+        require(
+            dao.payment(c, existing.get().id(), true).orElseThrow().status().equals("Confirmado"),
+            "El recibo corresponde a un pago anulado; use un recibo nuevo.");
+        return existing.get();
+      }
+      Guardian guardian =
+          dao.responsible(c, obligation.studentId(), request.guardianId())
+              .orElseThrow(
+                  () -> new BusinessException("Acudiente no autorizado para este estudiante."));
       require(
-          dao.payment(c, existing.get().id(), true).orElseThrow().status().equals("Confirmado"),
-          "El recibo corresponde a un pago anulado; use un recibo nuevo.");
-      return existing.get();
-    }
-    Guardian guardian =
-        dao.responsible(c, obligation.studentId(), request.guardianId())
-            .orElseThrow(
-                () -> new BusinessException("Acudiente no autorizado para este estudiante."));
-    require(
-        amount.compareTo(obligation.amount().subtract(obligation.paid())) <= 0,
-        "El pago supera el saldo pendiente.");
-    BigDecimal subtotal =
-        amount.divide(BigDecimal.ONE.add(obligation.taxRate()), 2, RoundingMode.HALF_UP);
-    BigDecimal tax = amount.subtract(subtotal);
-    long payment = dao.insertPayment(c, obligation, request);
-    long invoice =
-        dao.insertInvoice(c, payment, request, guardian, school, subtotal, tax, issueDate);
-    String number = "LH-%06d".formatted(invoice);
-    dao.identifyInvoice(c, invoice, number, cufe(number, school.nit(), issueDate, amount));
-    dao.insertLine(
-        c,
-        invoice,
-        new InvoiceLine("Abono: " + obligation.description(), 1, subtotal, subtotal, tax));
-    return new StoredPayment(payment, invoice, request);
+          amount.compareTo(obligation.amount().subtract(obligation.paid())) <= 0,
+          "El pago supera el saldo pendiente.");
+      BigDecimal subtotal =
+          amount.divide(BigDecimal.ONE.add(obligation.taxRate()), 2, RoundingMode.HALF_UP);
+      BigDecimal tax = amount.subtract(subtotal);
+      long payment = dao.insertPayment(c, obligation, request);
+      long invoice =
+          dao.insertInvoice(c, payment, request, guardian, school, subtotal, tax, issueDate);
+      String number = "LH-%06d".formatted(invoice);
+      dao.identifyInvoice(c, invoice, number, cufe(number, school.nit(), issueDate, amount));
+      dao.insertLine(
+          c,
+          invoice,
+          new InvoiceLine("Abono: " + obligation.description(), 1, subtotal, subtotal, tax));
+      return new StoredPayment(payment, invoice, request);
+    };
   }
 
   private static boolean samePayment(PaymentRequest left, PaymentRequest right) {
@@ -445,7 +447,7 @@ public final class FinanceService extends TransactionalService {
               }
               require(old.status().equals("Confirmado"), "El pago original ya está anulado.");
               dao.voidPayment(c, id, normalized);
-              StoredPayment created = savePayment(c, request);
+              StoredPayment created = savePayment(request).execute(c);
               dao.markReplacement(c, created.id(), id);
               return created;
             });

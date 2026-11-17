@@ -89,7 +89,7 @@ CREATE TABLE matriculas (
     id_matricula INT AUTO_INCREMENT PRIMARY KEY,
     id_estudiante INT NOT NULL,
     id_grado INT NOT NULL,
-    año_academico INT NOT NULL COMMENT 'Año académico (ej: 2024)',
+    anio_academico INT NOT NULL COMMENT 'Año académico (ej: 2024)',
     estado_matricula ENUM('Activa', 'Completada', 'Retirada') DEFAULT 'Activa',
     fecha_matricula DATE NOT NULL,
     fecha_retiro DATE,
@@ -97,8 +97,8 @@ CREATE TABLE matriculas (
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE RESTRICT,
     FOREIGN KEY (id_grado) REFERENCES grados(id_grado),
-    UNIQUE KEY matricula_unica (id_estudiante, año_academico),
-    INDEX idx_año_grado (año_academico, id_grado),
+    UNIQUE KEY matricula_unica (id_estudiante, anio_academico),
+    INDEX idx_anio_grado (anio_academico, id_grado),
     INDEX idx_estado (estado_matricula)
 ) ENGINE=InnoDB COMMENT='Historial de matrículas de estudiantes por año y grado';
 
@@ -148,14 +148,14 @@ CREATE TABLE asignaciones_profesor (
     id_asignacion INT AUTO_INCREMENT PRIMARY KEY,
     id_profesor INT NOT NULL,
     id_materia INT NOT NULL,
-    año_academico INT NOT NULL,
+    anio_academico INT NOT NULL,
     seccion VARCHAR(10) NOT NULL DEFAULT 'A' COMMENT 'Sección o grupo (A, B, C)',
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_profesor) REFERENCES profesores(id_profesor) ON DELETE RESTRICT,
     FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE RESTRICT,
-    UNIQUE KEY asignacion_unica (id_profesor, id_materia, año_academico, seccion),
-    INDEX idx_profesor_año (id_profesor, año_academico),
-    INDEX idx_materia_año (id_materia, año_academico)
+    UNIQUE KEY asignacion_unica (id_profesor, id_materia, anio_academico, seccion),
+    INDEX idx_profesor_anio (id_profesor, anio_academico),
+    INDEX idx_materia_anio (id_materia, anio_academico)
 ) ENGINE=InnoDB COMMENT='Asignación de profesores a materias por año académico';
 
 -- Inscripción de estudiantes en materias
@@ -163,7 +163,7 @@ CREATE TABLE inscripciones_materia (
     id_inscripcion INT AUTO_INCREMENT PRIMARY KEY,
     id_estudiante INT NOT NULL,
     id_materia INT NOT NULL,
-    año_academico INT NOT NULL,
+    anio_academico INT NOT NULL,
     periodo_academico ENUM('I', 'II', 'III', 'IV') NOT NULL COMMENT 'Período académico',
     seccion VARCHAR(10) NOT NULL DEFAULT 'A' COMMENT 'Sección o grupo asignado',
     fecha_inscripcion DATE NOT NULL,
@@ -171,8 +171,8 @@ CREATE TABLE inscripciones_materia (
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE RESTRICT,
     FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE RESTRICT,
-    UNIQUE KEY inscripcion_unica (id_estudiante, id_materia, año_academico, periodo_academico),
-    INDEX idx_estudiante_año (id_estudiante, año_academico),
+    UNIQUE KEY inscripcion_unica (id_estudiante, id_materia, anio_academico, periodo_academico),
+    INDEX idx_estudiante_anio (id_estudiante, anio_academico),
     INDEX idx_materia_periodo (id_materia, periodo_academico)
 ) ENGINE=InnoDB COMMENT='Inscripción de estudiantes en materias específicas';
 
@@ -182,7 +182,7 @@ CREATE TABLE registros_academicos (
     id_estudiante INT NOT NULL,
     id_materia INT NOT NULL,
     id_profesor INT NOT NULL,
-    año_academico INT NOT NULL,
+    anio_academico INT NOT NULL,
     periodo_academico ENUM('I', 'II', 'III', 'IV', 'Final') NOT NULL,
     valor_nota DECIMAL(2,1) NOT NULL COMMENT 'Nota de 0.0 a 5.0 según estándar colombiano',
     observaciones TEXT,
@@ -193,8 +193,8 @@ CREATE TABLE registros_academicos (
     FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE RESTRICT,
     FOREIGN KEY (id_profesor) REFERENCES profesores(id_profesor),
     CHECK (valor_nota >= 0.0 AND valor_nota <= 5.0),
-    UNIQUE KEY registro_unico (id_estudiante, id_materia, año_academico, periodo_academico),
-    INDEX idx_estudiante_año (id_estudiante, año_academico),
+    UNIQUE KEY registro_unico (id_estudiante, id_materia, anio_academico, periodo_academico),
+    INDEX idx_estudiante_anio (id_estudiante, anio_academico),
     INDEX idx_materia_periodo (id_materia, periodo_academico),
     INDEX idx_valor_nota (valor_nota)
 ) ENGINE=InnoDB COMMENT='Registro de calificaciones de estudiantes';
@@ -317,7 +317,7 @@ CREATE TABLE pagos (
     fecha_pago DATE NOT NULL,
     metodo_pago ENUM('Efectivo', 'Transferencia', 'Tarjeta Débito', 'Tarjeta Crédito', 'Cheque') NOT NULL,
     numero_recibo VARCHAR(50) UNIQUE,
-    año_academico INT COMMENT 'Año al que aplica el pago',
+    anio_academico INT COMMENT 'Año al que aplica el pago',
     periodo_academico ENUM('I', 'II', 'III', 'IV', 'Anual') COMMENT 'Período al que aplica el pago',
     notas TEXT,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -424,7 +424,7 @@ ALTER TABLE estudiante_acudiente
  ADD COLUMN parentesco VARCHAR(50) NOT NULL DEFAULT 'Tutor',
  ADD COLUMN es_responsable_financiero BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE asistencias
- ADD COLUMN año_academico INT NOT NULL,
+ ADD COLUMN anio_academico INT NOT NULL,
  ADD COLUMN periodo_academico ENUM('I','II','III','IV') NOT NULL;
 ALTER TABLE clubes ADD CONSTRAINT chk_cupo CHECK (capacidad_maxima > 0);
 ALTER TABLE membresias_club
@@ -642,7 +642,7 @@ INSERT INTO estudiante_acudiente (id_estudiante,id_acudiente,parentesco,es_princ
 (29,29,'Tutor',TRUE,TRUE,TRUE),
 (30,30,'Tutor',TRUE,TRUE,TRUE);
 
-INSERT INTO matriculas (id_estudiante,id_grado,año_academico,fecha_matricula) VALUES
+INSERT INTO matriculas (id_estudiante,id_grado,anio_academico,fecha_matricula) VALUES
 (1,1,2026,'2026-01-15'),
 (2,2,2026,'2026-01-15'),
 (3,3,2026,'2026-01-15'),
@@ -738,7 +738,7 @@ INSERT INTO profesores (numero_documento,primer_nombre,primer_apellido,correo_el
 ('70000029','Isabella','Herrera','profesor29@example.invalid','Inglés','2025-01-10'),
 ('70000030','Sebastián','Medina','profesor30@example.invalid','Educación Física','2025-01-10');
 
-INSERT INTO asignaciones_profesor (id_profesor,id_materia,año_academico,seccion) VALUES
+INSERT INTO asignaciones_profesor (id_profesor,id_materia,anio_academico,seccion) VALUES
 (1,1,2026,'A'),
 (2,2,2026,'A'),
 (3,3,2026,'A'),
@@ -802,7 +802,7 @@ INSERT INTO horarios (id_asignacion,dia_semana,hora_inicio,hora_fin) VALUES
 (29,1,'08:00:00','09:00:00'),
 (30,1,'08:00:00','09:00:00');
 
-INSERT INTO inscripciones_materia (id_estudiante,id_materia,año_academico,periodo_academico,seccion,fecha_inscripcion) VALUES
+INSERT INTO inscripciones_materia (id_estudiante,id_materia,anio_academico,periodo_academico,seccion,fecha_inscripcion) VALUES
 (1,1,2026,'I','A','2026-01-15'),
 (2,2,2026,'I','A','2026-01-15'),
 (3,3,2026,'I','A','2026-01-15'),
@@ -834,7 +834,7 @@ INSERT INTO inscripciones_materia (id_estudiante,id_materia,año_academico,perio
 (29,29,2026,'I','A','2026-01-15'),
 (30,30,2026,'I','A','2026-01-15');
 
-INSERT INTO registros_academicos (id_estudiante,id_materia,id_profesor,año_academico,periodo_academico,valor_nota,fecha_registro) VALUES
+INSERT INTO registros_academicos (id_estudiante,id_materia,id_profesor,anio_academico,periodo_academico,valor_nota,fecha_registro) VALUES
 (1,1,1,2026,'I','4.0','2026-03-20'),
 (2,2,2,2026,'I','5.0','2026-03-20'),
 (3,3,3,2026,'I','3.0','2026-03-20'),
@@ -866,7 +866,7 @@ INSERT INTO registros_academicos (id_estudiante,id_materia,id_profesor,año_acad
 (29,29,29,2026,'I','5.0','2026-03-20'),
 (30,30,30,2026,'I','3.0','2026-03-20');
 
-INSERT INTO asistencias (id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,año_academico,periodo_academico) VALUES
+INSERT INTO asistencias (id_estudiante,id_materia,fecha_asistencia,estado_asistencia,registrado_por,anio_academico,periodo_academico) VALUES
 (1,1,'2026-02-02','Presente',1,2026,'I'),
 (2,2,'2026-02-02','Presente',2,2026,'I'),
 (3,3,'2026-02-02','Presente',3,2026,'I'),
@@ -1185,36 +1185,36 @@ INSERT INTO pagos (id_estudiante,id_acudiente,id_concepto,id_obligacion,monto_pa
 (30,30,30,30,'350000.00','2026-01-15','Transferencia','REC-00030');
 
 INSERT INTO facturas (numero_factura,id_pago,fecha_emision,cufe,cliente_nombre,cliente_documento,cliente_direccion,colegio_nombre,colegio_nit,colegio_direccion,colegio_telefono,colegio_correo,subtotal,iva,total) VALUES
-('LH-000001',1,'2026-01-15','a6267b0f49ca2d33393b468e5b01bcbf210c3eb2b40620f793ed9adcf50fafc4','Daniela García','50000000','Calle 10 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000002',2,'2026-01-15','73036c3c97c776707b407a1a7a5d8f09f444e5d6403b4634357ce3ab160b4565','Alejandro Rodríguez','50000001','Calle 11 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000003',3,'2026-01-15','31cc4ec63426a83dc8f111fc5a448a2359786f7321c297bb6e209affa5c3db72','Luciana Martínez','50000002','Calle 12 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000004',4,'2026-01-15','fe5227b3dfa098e524c3cc7d7c54b4d14b73cf532db9701fba7777306e8f24b6','Emiliano López','50000003','Calle 13 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000005',5,'2026-01-15','4fa149f10fbd2257417d7d4dac82527eb08e0efe9c2a57e3a73695d7f845782e','Sara González','50000004','Calle 14 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000006',6,'2026-01-15','f2901495141f2a370c6d02ade5ea17f20bc06c1a6bfb8282938700f869ac40e5','Jerónimo Pérez','50000005','Calle 15 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000007',7,'2026-01-15','d871dfc9852026813c4596cc79ace43918831fca687ac376057da9d4241de3a7','Camila Sánchez','50000006','Calle 16 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000008',8,'2026-01-15','9f5b743d2cc939615b77e27754f703d74b856333516e9b71b558a648b8117426','Daniel Ramírez','50000007','Calle 17 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000009',9,'2026-01-15','ef5b418bb7a4d4f45062a900418c2a8f88392404d95c2dba42edf84c22708609','Julieta Torres','50000008','Calle 18 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000010',10,'2026-01-15','bad75184ad62a351b5ae0a9a75235b6e8b2e2ba9a83100124d13b735bcfae31c','Tomás Flores','50000009','Calle 19 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000011',11,'2026-01-15','20926c017d373a7deb210613e1777ffa3aeb1a28226622c954c01ef09442a7d6','Antonella Rivera','50000010','Calle 20 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000012',12,'2026-01-15','7f528ba129848d681375977d34b4b84b48d6685937fc176205401131fb1c1ae7','Martín Gómez','50000011','Calle 21 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000013',13,'2026-01-15','26836d01dcb59c262fcfea0046e770f96b4afbaa4bb9d1282b28efc45cb02a5d','Salomé Díaz','50000012','Calle 22 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000014',14,'2026-01-15','f0a403ecbd3736231efd593747ee52e739c9d0cac938cd2e3306b7215d08c29d','Joaquín Cruz','50000013','Calle 23 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000015',15,'2026-01-15','69919e8afdab6e02e87f46e4110b137a87318b79038747d772d6d4ba5d1d0f65','Victoria Morales','50000014','Calle 24 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000016',16,'2026-01-15','74662793a645300cb7566e5bfc33057b7ddb9e29d578f0c4d249ce8abd2a3dcf','Gabriel Ortiz','50000015','Calle 25 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000017',17,'2026-01-15','9fa6bc74dbdae8e6b9afb9fdeb381efaf0de060bc6747396a674795c3f27c237','Paula Gutiérrez','50000016','Calle 26 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000018',18,'2026-01-15','c25fb0acb4a99391c49e1d5b9a0901fe2fc630f3d17ef382ba5845a9a288db4c','Miguel Chávez','50000017','Calle 27 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000019',19,'2026-01-15','f2e88965df880f96bb8f1bef3b5d4ecb3d3170198e1c178532a21065c9f66a82','Ana Ramos','50000018','Calle 28 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000020',20,'2026-01-15','cf4584ff748d538735f3b46c6a6c41c9f82f38c337a2475d736eb622ec4c6738','David Reyes','50000019','Calle 29 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000021',21,'2026-01-15','82185ecfcb560dd42a5799630acf9704167bbac8a96b0e780d4ef80ffa12e3b8','Sofía Vargas','50000020','Calle 30 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000022',22,'2026-01-15','de18ef529731cf4e782b578cfed8de51975fa37f53302e5e521e57e74ed05ebc','Santiago Castillo','50000021','Calle 31 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000023',23,'2026-01-15','349abbde1ba6893219d5896e109e77212da7332d62fd69663b68d07bcea8eeb4','Valentina Jiménez','50000022','Calle 32 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000024',24,'2026-01-15','4160181a675ac1681f1e97ded1e2586cc8501dfa2c1409942bcaefd072bc02b9','Matías Moreno','50000023','Calle 33 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000025',25,'2026-01-15','6924512761a84a2f80205a63f4966388c2b3494475611df3d90b855d1d0523ab','Isabella Romero','50000024','Calle 34 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000026',26,'2026-01-15','2eb8e2f475fdb09580e10afcaa4a27d9068124964f53c4bf34301ba137a89b4c','Sebastián Álvarez','50000025','Calle 35 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000027',27,'2026-01-15','b60efc00313b11d4c113cfd761965526758f0aa4eeebb779b0d7a3a0513a3add','Mariana Mendoza','50000026','Calle 36 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000028',28,'2026-01-15','d64ad533cac1bbcc07e8c3dde8adc9650140965c195b872470f04b5e80332c84','Nicolás Ruiz','50000027','Calle 37 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000029',29,'2026-01-15','d1b7a3cb50efda8ecf06fc1c4ac51d0a562ab2469746eb6c1de9825d5745343a','Gabriela Herrera','50000028','Calle 38 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
-('LH-000030',30,'2026-01-15','efe58a6084f0820ccbff9a06cf60d5ec1b000c91d90b95fe7e3a3c176cba3c71','Samuel Medina','50000029','Calle 39 # 20-30','Colegio Internacional Little Horizons S.A.S. (DEMO)','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00');
+('LH-000001',1,'2026-01-15','a6267b0f49ca2d33393b468e5b01bcbf210c3eb2b40620f793ed9adcf50fafc4','Daniela García','50000000','Calle 10 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000002',2,'2026-01-15','73036c3c97c776707b407a1a7a5d8f09f444e5d6403b4634357ce3ab160b4565','Alejandro Rodríguez','50000001','Calle 11 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000003',3,'2026-01-15','31cc4ec63426a83dc8f111fc5a448a2359786f7321c297bb6e209affa5c3db72','Luciana Martínez','50000002','Calle 12 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000004',4,'2026-01-15','fe5227b3dfa098e524c3cc7d7c54b4d14b73cf532db9701fba7777306e8f24b6','Emiliano López','50000003','Calle 13 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000005',5,'2026-01-15','4fa149f10fbd2257417d7d4dac82527eb08e0efe9c2a57e3a73695d7f845782e','Sara González','50000004','Calle 14 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000006',6,'2026-01-15','f2901495141f2a370c6d02ade5ea17f20bc06c1a6bfb8282938700f869ac40e5','Jerónimo Pérez','50000005','Calle 15 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000007',7,'2026-01-15','d871dfc9852026813c4596cc79ace43918831fca687ac376057da9d4241de3a7','Camila Sánchez','50000006','Calle 16 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000008',8,'2026-01-15','9f5b743d2cc939615b77e27754f703d74b856333516e9b71b558a648b8117426','Daniel Ramírez','50000007','Calle 17 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000009',9,'2026-01-15','ef5b418bb7a4d4f45062a900418c2a8f88392404d95c2dba42edf84c22708609','Julieta Torres','50000008','Calle 18 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000010',10,'2026-01-15','bad75184ad62a351b5ae0a9a75235b6e8b2e2ba9a83100124d13b735bcfae31c','Tomás Flores','50000009','Calle 19 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000011',11,'2026-01-15','20926c017d373a7deb210613e1777ffa3aeb1a28226622c954c01ef09442a7d6','Antonella Rivera','50000010','Calle 20 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000012',12,'2026-01-15','7f528ba129848d681375977d34b4b84b48d6685937fc176205401131fb1c1ae7','Martín Gómez','50000011','Calle 21 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000013',13,'2026-01-15','26836d01dcb59c262fcfea0046e770f96b4afbaa4bb9d1282b28efc45cb02a5d','Salomé Díaz','50000012','Calle 22 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000014',14,'2026-01-15','f0a403ecbd3736231efd593747ee52e739c9d0cac938cd2e3306b7215d08c29d','Joaquín Cruz','50000013','Calle 23 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000015',15,'2026-01-15','69919e8afdab6e02e87f46e4110b137a87318b79038747d772d6d4ba5d1d0f65','Victoria Morales','50000014','Calle 24 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000016',16,'2026-01-15','74662793a645300cb7566e5bfc33057b7ddb9e29d578f0c4d249ce8abd2a3dcf','Gabriel Ortiz','50000015','Calle 25 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000017',17,'2026-01-15','9fa6bc74dbdae8e6b9afb9fdeb381efaf0de060bc6747396a674795c3f27c237','Paula Gutiérrez','50000016','Calle 26 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000018',18,'2026-01-15','c25fb0acb4a99391c49e1d5b9a0901fe2fc630f3d17ef382ba5845a9a288db4c','Miguel Chávez','50000017','Calle 27 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000019',19,'2026-01-15','f2e88965df880f96bb8f1bef3b5d4ecb3d3170198e1c178532a21065c9f66a82','Ana Ramos','50000018','Calle 28 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000020',20,'2026-01-15','cf4584ff748d538735f3b46c6a6c41c9f82f38c337a2475d736eb622ec4c6738','David Reyes','50000019','Calle 29 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000021',21,'2026-01-15','82185ecfcb560dd42a5799630acf9704167bbac8a96b0e780d4ef80ffa12e3b8','Sofía Vargas','50000020','Calle 30 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000022',22,'2026-01-15','de18ef529731cf4e782b578cfed8de51975fa37f53302e5e521e57e74ed05ebc','Santiago Castillo','50000021','Calle 31 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000023',23,'2026-01-15','349abbde1ba6893219d5896e109e77212da7332d62fd69663b68d07bcea8eeb4','Valentina Jiménez','50000022','Calle 32 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000024',24,'2026-01-15','4160181a675ac1681f1e97ded1e2586cc8501dfa2c1409942bcaefd072bc02b9','Matías Moreno','50000023','Calle 33 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000025',25,'2026-01-15','6924512761a84a2f80205a63f4966388c2b3494475611df3d90b855d1d0523ab','Isabella Romero','50000024','Calle 34 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000026',26,'2026-01-15','2eb8e2f475fdb09580e10afcaa4a27d9068124964f53c4bf34301ba137a89b4c','Sebastián Álvarez','50000025','Calle 35 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000027',27,'2026-01-15','b60efc00313b11d4c113cfd761965526758f0aa4eeebb779b0d7a3a0513a3add','Mariana Mendoza','50000026','Calle 36 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000028',28,'2026-01-15','d64ad533cac1bbcc07e8c3dde8adc9650140965c195b872470f04b5e80332c84','Nicolás Ruiz','50000027','Calle 37 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000029',29,'2026-01-15','d1b7a3cb50efda8ecf06fc1c4ac51d0a562ab2469746eb6c1de9825d5745343a','Gabriela Herrera','50000028','Calle 38 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00'),
+('LH-000030',30,'2026-01-15','efe58a6084f0820ccbff9a06cf60d5ec1b000c91d90b95fe7e3a3c176cba3c71','Samuel Medina','50000029','Calle 39 # 20-30','Colegio Internacional Little Horizons S.A.S.','900000000-0 (SIMULADO)','Calle de demostracion 123, Bogota','0000000000','colegio@example.invalid','350000.00','0.00','350000.00');
 
 INSERT INTO detalles_factura (id_factura,descripcion,cantidad,valor_unitario,subtotal,iva) VALUES
 (1,'Matrícula',1,'350000.00','350000.00','0.00'),

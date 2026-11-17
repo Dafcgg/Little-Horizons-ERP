@@ -5,14 +5,21 @@ import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.util.ConnectionProvider;
 import java.math.*;
 import java.time.*;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 public final class AcademicService extends TransactionalService {
   private final AcademicDao dao;
+  private final Clock clock;
 
   public AcademicService(ConnectionProvider connections, AcademicDao dao) {
+    this(connections, dao, Clock.system(ZoneId.of("America/Bogota")));
+  }
+
+  public AcademicService(ConnectionProvider connections, AcademicDao dao, Clock clock) {
     super(connections);
     this.dao = dao;
+    this.clock = Objects.requireNonNull(clock);
   }
 
   public long registerTeacher(Teacher teacher) {
@@ -213,6 +220,11 @@ public final class AcademicService extends TransactionalService {
             grades.stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .divide(BigDecimal.valueOf(grades.size()), 1, RoundingMode.HALF_UP));
+  }
+
+  public List<String> currentWeekAbsences() {
+    LocalDate start = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    return absences(start, start.plusDays(6), 3);
   }
 
   public List<String> absences(LocalDate start, LocalDate end, int threshold) {

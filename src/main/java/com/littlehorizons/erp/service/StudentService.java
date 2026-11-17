@@ -3,6 +3,7 @@ package com.littlehorizons.erp.service;
 import com.littlehorizons.erp.dao.StudentDao;
 import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.util.ConnectionProvider;
+import com.littlehorizons.erp.util.JdbcTransactionManager.Work;
 import java.time.*;
 import java.util.*;
 
@@ -168,7 +169,7 @@ public final class StudentService extends TransactionalService {
           require(dao.updateGuardian(c, guardian) == 1, "Acudiente inexistente.");
           for (long student : dao.guardianStudents(c, guardian.id())) {
             dao.lockStudent(c, student);
-            ensurePrincipal(c, student);
+            ensurePrincipal(student).execute(c);
           }
           return null;
         });
@@ -203,7 +204,7 @@ public final class StudentService extends TransactionalService {
                   .active(),
               "Acudiente inactivo.");
           dao.saveLink(c, link);
-          ensurePrincipal(c, link.studentId());
+          ensurePrincipal(link.studentId()).execute(c);
           return null;
         });
   }
@@ -219,7 +220,7 @@ public final class StudentService extends TransactionalService {
               dao.activeGuardians(c, student, guardian) > 0,
               "No se puede eliminar el último acudiente activo.");
           require(dao.deleteLink(c, student, guardian) == 1, "Vínculo inexistente.");
-          ensurePrincipal(c, student);
+          ensurePrincipal(student).execute(c);
           return null;
         });
   }
@@ -266,22 +267,25 @@ public final class StudentService extends TransactionalService {
         });
   }
 
-  private void ensurePrincipal(java.sql.Connection c, long student) throws java.sql.SQLException {
-    var active = new java.util.ArrayList<GuardianLink>();
-    for (var link : dao.links(c, student))
-      if (dao.lockGuardian(c, link.guardianId()).orElseThrow().active()) active.add(link);
-    require(!active.isEmpty(), "El estudiante necesita un acudiente activo.");
-    if (active.stream().noneMatch(GuardianLink::primary)) {
-      var next = active.get(0);
-      dao.saveLink(
-          c,
-          new GuardianLink(
-              student,
-              next.guardianId(),
-              next.relationship(),
-              true,
-              next.emergency(),
-              next.financial()));
-    }
+  private Work<Void> ensurePrincipal(long student) {
+    return c -> {
+      var active = new java.util.ArrayList<GuardianLink>();
+      for (var link : dao.links(c, student))
+        if (dao.lockGuardian(c, link.guardianId()).orElseThrow().active()) active.add(link);
+      require(!active.isEmpty(), "El estudiante necesita un acudiente activo.");
+      if (active.stream().noneMatch(GuardianLink::primary)) {
+        var next = active.get(0);
+        dao.saveLink(
+            c,
+            new GuardianLink(
+                student,
+                next.guardianId(),
+                next.relationship(),
+                true,
+                next.emergency(),
+                next.financial()));
+      }
+      return null;
+    };
   }
 }
