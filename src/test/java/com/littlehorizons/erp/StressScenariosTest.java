@@ -105,7 +105,7 @@ class StressScenariosTest {
     }
     assertEquals(1, compete(tasks, "El pago supera el saldo pendiente."));
     PaymentResult winner = winningPayments.element();
-    assertTrue(winner.pdfGenerated());
+    assertTrue(winner.fileGenerated());
     try (Connection c = connections.open()) {
       var debt = dao.lockObligation(c, obligation).orElseThrow();
       assertEquals(new BigDecimal("0.00"), debt.amount().subtract(debt.paid()));
@@ -114,17 +114,17 @@ class StressScenariosTest {
       assertEquals(
           1, Jdbc.count(c, "SELECT COUNT(*) FROM facturas WHERE id_pago=?", winner.paymentId()));
     }
-    PdfAssertions.validInvoice(service.invoice(winner.invoiceId()));
+    TextInvoiceAssertions.validInvoice(service.invoice(winner.invoiceId()));
   }
 
   @RepeatedTest(5)
-  void twentyRegenerationsAgreeOnOneCompletePdf() throws Exception {
+  void twentyRegenerationsAgreeOnOneCompleteInvoiceFile() throws Exception {
     var dao = new JdbcFinanceDao();
     var service = finance(dao);
     long obligation = obligation(service, BigDecimal.ONE);
     var request = request(obligation, BigDecimal.ONE, MysqlFixture.unique());
     PaymentResult payment = service.confirmPayment(request);
-    assertTrue(payment.pdfGenerated());
+    assertTrue(payment.fileGenerated());
     long invoiceId = payment.invoiceId();
     Invoice before = service.invoice(invoiceId);
     Path destination = Path.of(before.path());
@@ -134,7 +134,7 @@ class StressScenariosTest {
           () -> {
             // Separate service instances exercise the same process-wide synchronization as the CLI.
             PaymentResult regenerated = finance(dao).regenerate(invoiceId);
-            assertTrue(regenerated.pdfGenerated(), regenerated.message());
+            assertTrue(regenerated.fileGenerated(), regenerated.message());
             assertEquals(payment.paymentId(), regenerated.paymentId());
           });
     }
@@ -142,7 +142,7 @@ class StressScenariosTest {
     Invoice after = service.invoice(invoiceId);
     assertEquals(before.cufe(), after.cufe());
     assertEquals(destination, Path.of(after.path()));
-    PdfAssertions.validInvoice(after);
+    TextInvoiceAssertions.validInvoice(after);
     try (var files = Files.list(directory)) {
       assertEquals(List.of(destination), files.toList());
     }
@@ -188,7 +188,7 @@ class StressScenariosTest {
 
   private FinanceService finance(JdbcFinanceDao dao) {
     return new FinanceService(
-        connections, dao, new PdfInvoiceGenerator(directory), SchoolInformation.fromEnvironment());
+        connections, dao, new TextInvoiceGenerator(directory), SchoolInformation.fromEnvironment());
   }
 
   private static long obligation(FinanceService service, BigDecimal amount) {
@@ -256,10 +256,10 @@ class StressScenariosTest {
   void realFileWriteFailureRetainsPaymentNumberAndCufeForRetry() throws Exception {
     var dao = new JdbcFinanceDao();
     Path invoices = directory.resolve("invoices");
-    var renderer = new PdfInvoiceGenerator(invoices);
+    var renderer = new TextInvoiceGenerator(invoices);
     InvoiceRenderer blocked =
         invoice -> {
-          Path destination = invoices.resolve("factura_%06d.pdf".formatted(invoice.id()));
+          Path destination = invoices.resolve("factura_%06d.txt".formatted(invoice.id()));
           Files.createDirectories(destination);
           Files.writeString(
               destination.resolve("blocker.txt"), "Simulated non-replaceable destination");
@@ -278,7 +278,7 @@ class StressScenariosTest {
             PaymentMethod.CASH,
             reference);
     PaymentResult first = failing.confirmPayment(request);
-    assertFalse(first.pdfGenerated());
+    assertFalse(first.fileGenerated());
     Invoice snapshot;
     try (Connection c = connections.open()) {
       snapshot = dao.invoice(c, first.invoiceId()).orElseThrow();
@@ -293,13 +293,13 @@ class StressScenariosTest {
                   first.paymentId())
               .get(0));
     }
-    Path blockedPath = invoices.resolve("factura_%06d.pdf".formatted(first.invoiceId()));
+    Path blockedPath = invoices.resolve("factura_%06d.txt".formatted(first.invoiceId()));
     Files.delete(blockedPath.resolve("blocker.txt"));
     Files.delete(blockedPath);
     var working =
         new FinanceService(connections, dao, renderer, SchoolInformation.fromEnvironment());
     PaymentResult retried = working.confirmPayment(request);
-    assertTrue(retried.pdfGenerated());
+    assertTrue(retried.fileGenerated());
     assertEquals(first.paymentId(), retried.paymentId());
     assertEquals(first.invoiceId(), retried.invoiceId());
     try (Connection c = connections.open()) {
@@ -317,7 +317,7 @@ class StressScenariosTest {
     }
     System.out.println(
         "QA_DISK: real filesystem failure; payment/invoice/number/CUFE preserved; retry creates one"
-            + " PDF with no extra payment");
+            + " invoice file with no extra payment");
   }
 
   private int compete(List<Runnable> tasks, String expectedMessage) throws Exception {

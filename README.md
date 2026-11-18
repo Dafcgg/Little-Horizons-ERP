@@ -8,7 +8,7 @@ Aplicación de consola para la gestión del Colegio Internacional Little Horizon
 
 El ERP centraliza los registros académicos, las actividades extracurriculares, los pagos y el inventario. Resuelve la dispersión de información, los cruces de horarios, los sobrecupos de clubes, los pagos duplicados y los préstamos simultáneos de un mismo recurso.
 
-Incluye operaciones de creación, consulta, edición y baja para las 26 entidades del esquema, reportes de rendimiento, inasistencias, morosidad y préstamos vencidos, y facturas PDF con información DIAN **simulada**. Las bajas conservan el historial cuando corresponde; las correcciones financieras anulan el original y crean un reemplazo trazable. Los identificadores y comentarios Java y las pruebas están en inglés; la interfaz y el esquema SQL están en español.
+Incluye operaciones de creación, consulta, edición y baja para las 26 entidades del esquema, reportes de rendimiento, inasistencias, morosidad y préstamos vencidos, y facturas TXT en UTF-8 con información DIAN **simulada**. Las bajas conservan el historial cuando corresponde; las correcciones financieras anulan el original y crean un reemplazo trazable. Los identificadores y comentarios Java y las pruebas están en inglés; la interfaz y el esquema SQL están en español.
 
 ## 3. Autores
 
@@ -20,13 +20,11 @@ Incluye operaciones de creación, consulta, edición y baja para las 26 entidade
 
 | Tecnología | Versión / configuración | Responsabilidad |
 | --- | --- | --- |
-| Java | 17, `maven.compiler.release=17` | Records, enums, Stream API, JDBC y `BigDecimal`. |
+| Java | 17, `maven.compiler.release=17` | Records, enums, Stream API, JDBC, `BigDecimal` y archivos de factura en UTF-8. |
 | Maven | 3.8+ | Dependencias, compilación, pruebas y empaquetado. |
 | IntelliJ IDEA / VS Code | Con soporte Java y Maven | Edición y depuración; no son necesarios para ejecutar el JAR. |
 | MySQL | 8.0+; mínimo efectivo 8.0.16 por los `CHECK` | Persistencia InnoDB, claves foráneas y bloqueos. |
 | MySQL Connector/J | 26.10.0 | Driver JDBC, dependencia `com.mysql:mysql-connector-j`. |
-| Apache PDFBox | 3.0.8 | Escritura y lectura de facturas PDF. |
-| ZXing | 3.5.4 (`core` y `javase`) | Generación y validación de códigos QR. |
 | JUnit Jupiter | 5.11.4 | Pruebas unitarias y de integración. |
 | `java.util.logging` | Incluido en Java | Registro de errores con `AppLogger`. |
 
@@ -66,6 +64,8 @@ El script ya contiene `CREATE DATABASE erp_little_horizons`; no cree primero una
 Para instalaciones de la fase anterior al CRUD completo existe [docs/migrations/002_complete_crud.sql](docs/migrations/002_complete_crud.sql). Aplíquelo una sola vez a esa versión; no lo aplique después del script completo. Las columnas `descripcion` ya existían en el esquema: esta revisión conecta su uso en Java y completa las semillas.
 
 La columna del año y sus índices usan identificadores ASCII: `anio_academico`. Si la base existente aún utiliza `año_academico`, aplique una sola vez [docs/migrations/003_ascii_academic_year.sql](docs/migrations/003_ascii_academic_year.sql) antes de ejecutar esta versión. La migración renombra las columnas de las seis tablas afectadas y sus índices, conservando datos y restricciones. Si parte de una versión anterior al CRUD completo, aplique primero `002` y después `003`. No aplique estas migraciones tras importar el script completo actual. MySQL confirma cada `ALTER TABLE` por separado; si se interrumpe, revise qué tablas ya se renombraron antes de continuar.
+
+Para una instalación existente, aplique la migración 004 una sola vez después de `003`. El esquema de instalación nueva ya incluye los cambios. La migración conserva los consecutivos, los CUFE y las rutas históricas. Use **Finanzas → Regenerar factura TXT sin registrar otro pago** para guardar el TXT y actualizar su ruta. Las facturas históricas sin hora de emisión registrada muestran «No registrada». [Migración 004](docs/migrations/004_text_invoices.sql)
 
 El catálogo conserva los 12 niveles de Preescolar (0) a Once (11). Para completar las 30 filas de demostración incluye variantes A/B del mismo nivel; no son niveles adicionales. Al matricular o cambiar de grado, la consola explica estas variantes. Consulte sus identificadores en **Administración, edición e inactivación → Grados y categorías → Grados → Listar, incluidos inactivos**.
 
@@ -159,11 +159,11 @@ El script levanta un contenedor MySQL 8.0 en un puerto local dinámico, espera u
 
 También puede preparar manualmente una base MySQL aislada e indicar esas seis variables. Sin `ERP_TEST_DB_URL` se omiten las pruebas de integración; sin `ERP_DB_URL` se omite la prueba que abre conexiones reales del Singleton. Por ello, una ejecución sin base no acredita la suite completa. Los informes se guardan en `target/surefire-reports/`.
 
-Verificación completa del 16 de noviembre de 2026: **86 pruebas aprobadas (80 anteriores + 6 casos nuevos), 0 fallos, 0 errores y 0 omitidas; BUILD SUCCESS con `mvn clean verify`**. Ejecutada con Maven 3.9.9, JDK 21 compilando bytecode Java 17 y MySQL 8.0.46 aislado, con importación del esquema actual. Incluye regresiones de PDF, descripciones, préstamos, Singleton, formularios, transacciones y reportes. Los nuevos casos verifican la semana de Bogotá, sus límites de lunes y domingo, los cruces de mes/año y el menú con umbral fijo. Los nombres únicos del escenario administrativo permiten repetirlo sobre la misma base de pruebas.
+Verificación completa del 16 de noviembre de 2026: **86 pruebas aprobadas (80 anteriores + 6 casos nuevos), 0 fallos, 0 errores y 0 omitidas; BUILD SUCCESS con `mvn clean verify`**. Ejecutada con Maven 3.9.9, JDK 21 compilando bytecode Java 17 y MySQL 8.0.46 aislado, con importación del esquema actual. Incluye regresiones de facturación, descripciones, préstamos, Singleton, formularios, transacciones y reportes. Los nuevos casos verifican la semana de Bogotá, sus límites de lunes y domingo, los cruces de mes/año y el menú con umbral fijo. Los nombres únicos del escenario administrativo permiten repetirlo sobre la misma base de pruebas.
 
 También se importó el SQL de la versión anterior en una segunda base aislada y se aplicó `003_ascii_academic_year.sql`: los checksums de las seis tablas afectadas se conservaron. Sobre esa base migrada, `mvn test` volvió a aprobar las **86 pruebas, sin fallos, errores ni omisiones**.
 
-El 17 de noviembre de 2026 se aprobaron **2.480 pruebas**, sin fallos, errores ni omisiones. `mvn clean verify` terminó con `BUILD SUCCESS` usando Java 17 y MySQL 8.0.46 aislado.
+El 17 de noviembre de 2026 se aprobaron **2.481 pruebas**, sin fallos, errores ni omisiones. `mvn clean verify` terminó con `BUILD SUCCESS` usando Java 17 y MySQL 8.0.46 aislado.
 
 ### 7.4 Ejecutar JAR
 
@@ -188,7 +188,10 @@ Little-Horizons-ERP/
 │   ├── database.sql
 │   └── migrations/
 │       ├── 002_complete_crud.sql
-│       └── 003_ascii_academic_year.sql
+│       ├── 003_ascii_academic_year.sql
+│       └── 004_text_invoices.sql
+├── invoices/
+│   └── .gitkeep
 ├── scripts/test-integration.sh
 └── src/
     ├── main/java/com/littlehorizons/erp/
@@ -210,7 +213,7 @@ Little-Horizons-ERP/
 | Controlador | `AcademicController`, `ActivityController`, `FinanceController`, `ResourceController` y controladores administrativos coordinan los formularios. |
 | Servicio | Reglas de negocio y reportes en `AcademicService`, `ActivityService`, `FinanceService` y `ResourceService`. `TransactionalService` delega la ejecución transaccional. |
 | DAO | Interfaces de persistencia; implementaciones `Jdbc*Dao` con SQL estático parametrizado. `Jdbc` gestiona sentencias y resultados. |
-| Utilidades | `DatabaseConnection`, `ConnectionProvider`, `JdbcTransactionManager`, `AppLogger`, `BusinessException`, `InvoiceRenderer` y `PdfInvoiceGenerator`. |
+| Utilidades | `DatabaseConnection`, `ConnectionProvider`, `JdbcTransactionManager`, `AppLogger`, `BusinessException`, `InvoiceRenderer` y `TextInvoiceGenerator`. |
 | Composición | `Main` construye e inyecta dependencias y abre el menú. |
 
 El flujo es vista → controlador → servicio → DAO → MySQL. El servicio delimita cada operación y `JdbcTransactionManager` abre/cierra la conexión y confirma o revierte la transacción; los DAO reciben esa conexión y no la cierran ni confirman. Las referencias explícitas a `java.sql` se concentran en DAO y utilidades. Los servicios componen operaciones `Work` sobre la misma conexión, incluidos los ajustes de acudientes y las correcciones de pagos. No hay SQL en las vistas ni lectura de consola en los DAO.
@@ -221,7 +224,7 @@ Los fragmentos siguientes proceden de las clases actuales del repositorio; los f
 
 ### 9.1 Principios SOLID
 
-**SRP — responsabilidad única.** `JdbcTransactionManager` controla la transacción, `PdfInvoiceGenerator` escribe el documento y `AppLogger` registra errores. Por ejemplo, el registro se concentra en este método real de `AppLogger`:
+**SRP — responsabilidad única.** `JdbcTransactionManager` controla la transacción, `TextInvoiceGenerator` escribe el documento y `AppLogger` registra errores. Por ejemplo, el registro se concentra en este método real de `AppLogger`:
 
 ```java
 public static void error(String operation, Throwable error) {
@@ -313,21 +316,15 @@ public AcademicService(ConnectionProvider connections, AcademicDao dao) {
 }
 ```
 
-**Strategy.** `InvoiceRenderer` define la estrategia y `PdfInvoiceGenerator` la implementación PDF. El constructor real del generador normaliza su destino:
+**Strategy.** `InvoiceRenderer` define la estrategia y `TextInvoiceGenerator` la implementación de texto plano. El constructor real del generador normaliza su destino:
 
 ```java
-public PdfInvoiceGenerator(Path directory) {
+public TextInvoiceGenerator(Path directory) {
   this.directory = directory.toAbsolutePath().normalize();
 }
 ```
 
-La prueba `FinancePdfRegenerationIntegrationTest` sustituye esa estrategia por esta lambda real para reproducir un fallo de escritura:
-
-```java
-invoice -> {
-  throw new IOException("Output file is locked");
-}
-```
+La prueba `FinanceFileRegenerationIntegrationTest` provoca un fallo real de escritura al configurar el generador con un archivo regular como directorio de salida. Verifica que la factura pase a `Fallida` y que el reintento restaure `Generada`.
 
 Los reportes usan Stream API explícitamente en la capa de servicio. Por ejemplo, en `AcademicService.absences`:
 
@@ -349,7 +346,7 @@ return transaction(c -> dao.absenceCounts(c, start, end)).stream()
 
 **Extracurricular.** Clubes y eventos con nombre y descripción en creación, consulta, listado y edición. Asignación de profesor, control de cupos, membresías y retiro/reactivación conservando historial. La inactivación del club retira sus miembros activos. Eventos con fecha, lugar, tipo, carácter competitivo y participantes; las posiciones solo se permiten en competencias. La descripción se conserva al desactivar o reactivar.
 
-**Financiero / Facturación DIAN simulada.** Conceptos, tarifas particulares, obligaciones, pagos parciales, recibos únicos, saldos e historial individual/familiar. Cálculos con `BigDecimal`, validación de IVA y máximo dos decimales. Bloqueos para evitar sobrepagos; correcciones y anulaciones trazables. El reporte de morosos exige saldo positivo y vencimiento de más de un mes calendario. Los PDF conservan emisor, acudiente e importes históricos, incluyen CUFE SHA-256, QR y resolución simulados. Un fallo de generación conserva el pago y marca `Fallida`, también desde `Generada`; reintentar correctamente restaura `Generada` sin duplicar el pago ni la factura.
+**Financiero / Facturación DIAN simulada.** Conceptos, tarifas particulares, obligaciones, pagos parciales, recibos únicos, saldos e historial individual/familiar. Cálculos con `BigDecimal`, validación de IVA y máximo dos decimales. Bloqueos para evitar sobrepagos; correcciones y anulaciones trazables. El reporte de morosos exige saldo positivo y vencimiento de más de un mes calendario. Las facturas se emiten únicamente como `factura_%06d.txt`. El archivo conserva emisor, acudiente e importes históricos. Incluyen fecha y hora de Bogotá, CUFE SHA-256, resolución simulada y una cadena textual de verificación. Un fallo de generación conserva el pago y marca `Fallida`, también desde `Generada`; reintentar correctamente restaura `Generada` sin duplicar el pago ni la factura.
 
 **Recursos.** Categorías, inventario, ubicación, mantenimiento y bajas. Préstamos separados para estudiantes y profesores con bloqueo común del recurso, consulta individual/listados, cambio de vencimiento, devolución y anulación. Si un préstamo almacenado como `Activo` tiene fecha esperada anterior a hoy, las consultas exponen **`Vencido`** sin modificar la fila; un vencimiento de hoy sigue activo. Se pueden devolver préstamos activos o vencidos, liberando el recurso. Los devueltos y anulados no se reclasifican por fecha.
 
@@ -357,13 +354,13 @@ return transaction(c -> dao.absenceCounts(c, start, end)).stream()
 
 `BusinessException` expresa validaciones recuperables con mensajes en español. `AppLogger` registra las causas técnicas mediante `java.util.logging` en `error_log.txt`, con UTF-8, límite aproximado de 1 MB y un archivo de rotación. Si no puede abrirse el log al iniciar, `Main` informa y termina. Los fallos deliberados de pruebas pueden producir entradas de error esperadas sin representar fallos de la suite.
 
-`JdbcTransactionManager` configura `READ_COMMITTED`, desactiva autocommit, ejecuta commit al completar y rollback ante error SQL, excepción de ejecución o `Error`. Si el rollback también falla, esa causa queda suprimida en la excepción original. `TransactionalService` delega en esta utilidad sin importar `java.sql`. Conexiones, sentencias, resultados y documentos se cierran con `try-with-resources`.
+`JdbcTransactionManager` configura `READ_COMMITTED`, desactiva autocommit, ejecuta commit al completar y rollback ante error SQL, excepción de ejecución o `Error`. Si el rollback también falla, esa causa queda suprimida en la excepción original. `TransactionalService` delega en esta utilidad sin importar `java.sql`. Conexiones, sentencias y resultados se cierran con `try-with-resources`.
 
-El pago y la factura se confirman **antes** de escribir el PDF. Una escritura fallida no repite la transacción financiera: registra el fallo y guarda `Fallida`. Si esa actualización afecta cero filas o no puede persistirse, el servicio registra el problema y lanza `BusinessException`, indicando que se regenere la factura y no se registre otro pago. El marcado exitoso también verifica las filas actualizadas y el estado de negocio de la factura.
+El pago y la factura se confirman **antes** de escribir la factura TXT. Una escritura fallida no repite la transacción financiera: registra el fallo y guarda `Fallida`. Si esa actualización afecta cero filas o no puede persistirse, el servicio registra el problema y lanza `BusinessException`, indicando que se regenere la factura y no se registre otro pago. El marcado exitoso también verifica las filas actualizadas y el estado de negocio de la factura.
 
-El PDF usa un archivo temporal y movimiento atómico cuando el sistema lo permite. MySQL y el sistema de archivos no comparten una transacción distribuida; si falla MySQL tras escribir el archivo puede requerirse regeneración. Una copia anterior puede conservarse aunque el estado sea `Fallida`; el estado refleja el último intento de generación.
+La escritura usa un archivo temporal y movimiento atómico cuando el sistema lo permite. MySQL y el sistema de archivos no comparten una transacción distribuida; si falla MySQL tras escribir el archivo puede requerirse regeneración. Una copia anterior puede conservarse aunque el estado sea `Fallida`; el estado refleja el último intento de generación.
 
-`.gitignore` excluye explícitamente `*.class`, `error_log.txt`, `*.log`, `invoices/*.pdf`, `facturas/*.pdf` y `.env`, además de `target/`, temporales y ajustes locales del editor. Los PDF y logs de comprobación no forman parte de la entrega versionada.
+`.gitignore` excluye los archivos generados en `invoices/` y `facturas/`, incluidos los TXT. También excluye los logs y `target/`. El directorio predeterminado `invoices/` se conserva en Git con `.gitkeep`.
 
 ## 12. Capturas de Pantalla
 
@@ -394,30 +391,47 @@ PRESTAMOS VENCIDOS
 Préstamo #34 | Tipo: estudiante | Solicitante: 1 | Recurso: 35 | Vencimiento: 2026-11-14
 ```
 
-Texto extraído con PDFBox de `invoices/factura_000001.pdf`, generado por `PdfInvoiceGenerator` a partir de la factura de demostración de la semilla:
+Ejemplo de `invoices/factura_000001.txt` para la primera factura de demostración.
 
 ```text
-Colegio Internacional Little Horizons S.A.S.
+-------------------------------------------------------------------------------------------------
+FACTURA ELECTRÓNICA DE DEMOSTRACIÓN — SIN VALIDACIÓN DIAN
+-------------------------------------------------------------------------------------------------
+Número de factura: LH-000001
+Fecha de emisión: 2026-01-15
+Hora de emisión (Bogotá): No registrada
+
+DATOS DEL EMISOR
+Razón social: Colegio Internacional Little Horizons S.A.S.
 NIT: 900000000-0 (SIMULADO)
-Calle de demostracion 123, Bogota
-0000000000 | colegio@example.invalid
-FACTURA DE DEMOSTRACION - SIN VALIDACION DIAN
-Resolucion SIMULADA DEMO-001
-Factura: LH-000001 | Fecha: 2026-01-15
-Responsable: Daniela García
-Documento: 50000000
-Direccion: Calle 10 # 20-30
+Dirección: Calle de demostracion 123, Bogota
+Teléfono: 0000000000
+Correo electrónico: colegio@example.invalid
 
-Concepto | Cantidad | Valor unitario | Subtotal
-Matrícula | 1 | COP 350000.00 | COP 350000.00
+DATOS DEL CLIENTE (ACUDIENTE)
+Nombre completo: Daniela García
+Número de documento: 50000000
+Dirección: Calle 10 # 20-30
 
+DETALLE DE LA FACTURA
++--------------------------------------------+------------+------------------+------------------+
+| Descripción                                |   Cantidad |   Valor unitario |         Subtotal |
++--------------------------------------------+------------+------------------+------------------+
+| Matrícula                                  |          1 |    COP 350000.00 |    COP 350000.00 |
++--------------------------------------------+------------+------------------+------------------+
 Subtotal: COP 350000.00
 IVA: COP 0.00
-TOTAL: COP 350000.00
-CUFE SIMULADO: a6267b0f49ca2d33393b468e5b01bcbf210c3eb2b40620f793ed9adcf50fafc4
+Total: COP 350000.00
+
+CUMPLIMIENTO DIAN SIMULADO
+Resolución de habilitación simulada: DEMO-001
+CUFE simulado: a6267b0f49ca2d33393b468e5b01bcbf210c3eb2b40620f793ed9adcf50fafc4
+CÓDIGO QR SIMULADO — CADENA DE VERIFICACIÓN
+SIMULACION|LH-000001|900000000-0 (SIMULADO)|2026-01-15|No registrada|COP 350000.00|a6267b0f49ca2d33393b468e5b01bcbf210c3eb2b40620f793ed9adcf50fafc4
+-------------------------------------------------------------------------------------------------
 ```
 
-El documento coloca el encabezado y los datos del responsable en la parte superior, los conceptos e importes debajo y un QR en la zona inferior izquierda de la última página. El QR es una imagen y no aparece en la extracción textual. Las pruebas comprueban el texto, la paginación y la decodificación del QR. El PDF generado queda excluido de Git.
+La cadena de verificación contiene el estado, el consecutivo, el NIT, la fecha, la hora, el total y el CUFE. Dentro de un campo, `%25` representa `%` y `%7C` representa `|`.
 
 ## 13. Problemas Conocidos y Limitaciones
 
@@ -425,15 +439,15 @@ El documento coloca el encabezado y los datos del responsable en la parte superi
 - No existe calendario académico por período, generación mensual automática de cargos ni historial de vigencia de tarifas.
 - Las bajas con historial son lógicas. Las líneas de facturas emitidas se conservan y las correcciones crean documentos reemplazantes.
 - CUFE, QR, resolución y emisor predeterminado son simulados: no hay firma, transmisión ni validación DIAN.
-- El PDF utiliza una fuente estándar que sustituye caracteres no admitidos; los reportes no tienen exportador general.
+- La cadena de verificación del QR simulado se guarda como texto. Los reportes no tienen exportador general.
 - La exclusividad de préstamos y los cupos dependen de los bloqueos de los servicios. Una escritura SQL directa puede eludir esas reglas.
-- La generación PDF se coordina dentro de la JVM. Varias JVM compartiendo directorio requieren coordinación adicional; tampoco existe atomicidad única entre base de datos y archivos.
+- La generación de facturas se coordina dentro de la JVM. Varias JVM compartiendo directorio requieren coordinación adicional; tampoco existe atomicidad única entre base de datos y archivos.
 - Las semillas tienen fechas de 2026 y los reportes dependen de la fecha local. El script SQL inicial no es idempotente.
 - Shade puede advertir sobre metadatos duplicados de dependencias. Los consecutivos pueden tener huecos después de rollback.
 
 ## 14. Futuras Mejoras
 
-Incorporar autenticación y roles, calendario escolar, cargos periódicos y vigencias de tarifas. Añadir exportación y paginación de reportes, una interfaz web y coordinación de PDF entre procesos. Automatizar copias de seguridad y recuperación, revisión de dependencias e integración continua contra MySQL. Ampliar pruebas de concurrencia y rendimiento conforme crezca el uso institucional, conservando las fronteras transaccionales.
+Incorporar autenticación y roles, calendario escolar, cargos periódicos y vigencias de tarifas. Añadir exportación y paginación de reportes, una interfaz web y coordinación de archivos de factura entre procesos. Automatizar copias de seguridad y recuperación, revisión de dependencias e integración continua contra MySQL. Ampliar pruebas de concurrencia y rendimiento conforme crezca el uso institucional, conservando las fronteras transaccionales.
 
 ## 15. Licencia
 

@@ -216,7 +216,7 @@ class ConsoleFlowsIntegrationTest {
         view,
         CONNECTIONS,
         invoice -> {
-          throw new AssertionError("An interrupted form rendered a PDF");
+          throw new AssertionError("An interrupted form rendered an invoice");
         });
     return bytes.toString(UTF_8);
   }

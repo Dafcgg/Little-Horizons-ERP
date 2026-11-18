@@ -61,7 +61,7 @@ public final class FinanceController {
                             view.choice("Método", PaymentMethod.class),
                             view.required("Número de recibo (reutilizar en reintentos)"))))),
         new Action(
-            "Regenerar PDF sin registrar otro pago",
+            "Regenerar factura TXT sin registrar otro pago",
             () -> view.show(service.regenerate(view.id("ID factura")))),
         new Action(
             "Historial por estudiante",

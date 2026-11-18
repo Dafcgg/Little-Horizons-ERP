@@ -12,12 +12,13 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.*;
 import org.junit.jupiter.api.Test;
 
-class FinancePdfStatusTest {
+class FinanceFileStatusTest {
   private Connection connection() {
     return (Connection)
         Proxy.newProxyInstance(
@@ -38,6 +39,7 @@ class FinancePdfStatusTest {
         3,
         "LH-000007",
         LocalDate.now(),
+        LocalTime.NOON,
         "Test customer",
         "123",
         "Test address",
@@ -51,7 +53,7 @@ class FinancePdfStatusTest {
         BigDecimal.TEN,
         "test-cufe",
         "Generada",
-        "previous.pdf",
+        "previous.txt",
         List.of());
   }
 
@@ -65,7 +67,7 @@ class FinancePdfStatusTest {
                 (proxy, method, arguments) ->
                     switch (method.getName()) {
                       case "invoice" -> Optional.of(invoice());
-                      case "pdfStatus" -> 0;
+                      case "fileStatus" -> 0;
                       default -> throw new UnsupportedOperationException(method.getName());
                     });
     var service =
@@ -101,7 +103,7 @@ class FinancePdfStatusTest {
   }
 
   @Test
-  void rejectedGeneratedStatusDoesNotReportPdfSuccess() {
+  void rejectedGeneratedStatusDoesNotReportFileSuccess() {
     AtomicInteger failureUpdates = new AtomicInteger();
     FinanceDao dao =
         (FinanceDao)
@@ -111,8 +113,8 @@ class FinancePdfStatusTest {
                 (proxy, method, arguments) ->
                     switch (method.getName()) {
                       case "invoice" -> Optional.of(invoice());
-                      case "markPdfGenerated" -> false;
-                      case "pdfStatus" -> {
+                      case "markFileGenerated" -> false;
+                      case "fileStatus" -> {
                         assertEquals("Fallida", arguments[2]);
                         yield failureUpdates.incrementAndGet();
                       }
@@ -122,10 +124,10 @@ class FinancePdfStatusTest {
         new FinanceService(
             this::connection,
             dao,
-            invoice -> Path.of("generated.pdf"),
+            invoice -> Path.of("generated.txt"),
             SchoolInformation.fromEnvironment());
 
-    assertFalse(service.regenerate(7).pdfGenerated());
+    assertFalse(service.regenerate(7).fileGenerated());
     assertEquals(1, failureUpdates.get());
   }
 
@@ -154,7 +156,7 @@ class FinancePdfStatusTest {
         new FinanceService(
             this::connection,
             dao,
-            invoice -> Path.of("unused.pdf"),
+            invoice -> Path.of("unused.txt"),
             SchoolInformation.fromEnvironment());
 
     assertEquals(List.of(overdue), service.overdue());

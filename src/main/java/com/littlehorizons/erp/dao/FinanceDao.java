@@ -31,7 +31,7 @@ public interface FinanceDao {
 
   Optional<StoredPayment> findPayment(Connection c, String receipt) throws SQLException;
 
-  Optional<Guardian> responsible(Connection c, long student, long guardian) throws SQLException;
+  Optional<InvoiceCustomer> responsible(Connection c, long student, long guardian) throws SQLException;
 
   long insertPayment(Connection c, Obligation obligation, PaymentRequest request)
       throws SQLException;
@@ -40,11 +40,11 @@ public interface FinanceDao {
       Connection c,
       long payment,
       PaymentRequest request,
-      Guardian guardian,
+      InvoiceCustomer customer,
       SchoolInformation school,
       BigDecimal subtotal,
       BigDecimal tax,
-      LocalDate issueDate)
+      LocalDateTime issuedAt)
       throws SQLException;
 
   void identifyInvoice(Connection c, long invoice, String number, String cufe) throws SQLException;
@@ -53,7 +53,7 @@ public interface FinanceDao {
 
   Optional<Invoice> invoice(Connection c, long id) throws SQLException;
 
-  int pdfStatus(Connection c, long id, String status, String path) throws SQLException;
+  int fileStatus(Connection c, long id, String status, String path) throws SQLException;
 
   List<Balance> balances(Connection c, LocalDate overdueBefore) throws SQLException;
 
@@ -89,6 +89,6 @@ public interface FinanceDao {
 
   boolean activeStudent(Connection c, long student) throws SQLException;
 
-  boolean markPdfGenerated(Connection c, long id, String path, String expectedState)
+  boolean markFileGenerated(Connection c, long id, String path, String expectedState)
       throws SQLException;
 }

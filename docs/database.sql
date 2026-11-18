@@ -336,9 +336,10 @@ CREATE TABLE facturas (
     numero_factura VARCHAR(50) NOT NULL UNIQUE COMMENT 'Número consecutivo de factura',
     id_pago INT NOT NULL COMMENT 'Pago asociado a esta factura',
     fecha_emision DATE NOT NULL,
+    hora_emision TIME NULL COMMENT 'Hora de emisión en Bogotá',
     cufe VARCHAR(100) COMMENT 'Código Único de Factura Electrónica (simulado)',
-    nombre_archivo_pdf VARCHAR(255) COMMENT 'Nombre del archivo PDF generado',
-    ruta_archivo VARCHAR(500) COMMENT 'Ruta completa donde se guardó el PDF',
+    nombre_archivo VARCHAR(255) COMMENT 'Nombre del archivo generado',
+    ruta_archivo VARCHAR(500) COMMENT 'Ruta completa del archivo de factura',
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_pago) REFERENCES pagos(id_pago) ON DELETE RESTRICT,
     INDEX idx_numero_factura (numero_factura),
@@ -471,7 +472,7 @@ ALTER TABLE pagos
  ADD CONSTRAINT chk_pago_positivo CHECK (monto_pagado > 0);
 ALTER TABLE facturas
  ADD UNIQUE KEY factura_pago_unico(id_pago),
- ADD COLUMN cliente_nombre VARCHAR(220) NOT NULL,
+ ADD COLUMN cliente_nombre VARCHAR(403) NOT NULL,
  ADD COLUMN cliente_documento VARCHAR(20) NOT NULL,
  ADD COLUMN cliente_direccion VARCHAR(255) NOT NULL,
  ADD COLUMN colegio_nombre VARCHAR(255) NOT NULL,
@@ -482,7 +483,7 @@ ALTER TABLE facturas
  ADD COLUMN subtotal DECIMAL(10,2) NOT NULL CHECK (subtotal >= 0),
  ADD COLUMN iva DECIMAL(10,2) NOT NULL CHECK (iva >= 0),
  ADD COLUMN total DECIMAL(10,2) NOT NULL,
- ADD COLUMN estado_pdf ENUM('Pendiente','Generada','Fallida') NOT NULL DEFAULT 'Pendiente',
+ ADD COLUMN estado_archivo ENUM('Pendiente','Generada','Fallida') NOT NULL DEFAULT 'Pendiente',
  ADD CONSTRAINT chk_total_factura CHECK (total = subtotal + iva);
 CREATE TABLE detalles_factura (
  id_detalle INT AUTO_INCREMENT PRIMARY KEY,

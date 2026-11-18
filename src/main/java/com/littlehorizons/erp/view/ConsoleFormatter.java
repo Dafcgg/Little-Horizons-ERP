@@ -324,7 +324,7 @@ final class ConsoleFormatter {
           + i.date()
           + " | Estado: "
           + i.businessStatus()
-          + " | PDF: "
+          + " | Estado del archivo: "
           + i.status()
           + "\nEmisor: "
           + i.schoolName()
@@ -373,8 +373,8 @@ final class ConsoleFormatter {
           + r.paymentId()
           + " | Factura #"
           + r.invoiceId()
-          + " | PDF generado: "
-          + yes(r.pdfGenerated())
+          + " | Archivo generado: "
+          + yes(r.fileGenerated())
           + " | "
           + r.message();
     if (value instanceof Balance b)

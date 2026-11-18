@@ -1,12 +1,13 @@
 # Build output and generated runtime files
 /target/
-/invoices/
 /error_log.txt*
 *.class
 error_log.txt
 *.log
-invoices/*.pdf
-facturas/*.pdf
+/invoices/*
+!/invoices/.gitkeep
+/facturas/*
+!/facturas/.gitkeep
 *.tmp
 
 # Local credentials and editor settings
@@ -26,6 +27,7 @@ Thumbs.db
 /docs/migrations/*
 !/docs/migrations/002_complete_crud.sql
 !/docs/migrations/003_ascii_academic_year.sql
+!/docs/migrations/004_text_invoices.sql
 
 # Historical repository simulation helper
 /scripts/prepare-delivery.sh

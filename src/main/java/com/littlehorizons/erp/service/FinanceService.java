@@ -8,6 +8,7 @@ import java.math.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public final class FinanceService extends TransactionalService {
@@ -129,7 +130,6 @@ public final class FinanceService extends TransactionalService {
     return c -> {
       BigDecimal amount = request.amount();
       String receipt = request.receipt();
-      LocalDate issueDate = LocalDate.now();
       Obligation obligation =
           dao.lockObligation(c, request.obligationId())
               .orElseThrow(() -> new BusinessException("Obligación inexistente."));
@@ -146,7 +146,7 @@ public final class FinanceService extends TransactionalService {
             "El recibo corresponde a un pago anulado; use un recibo nuevo.");
         return existing.get();
       }
-      Guardian guardian =
+      InvoiceCustomer customer =
           dao.responsible(c, obligation.studentId(), request.guardianId())
               .orElseThrow(
                   () -> new BusinessException("Acudiente no autorizado para este estudiante."));
@@ -157,10 +157,13 @@ public final class FinanceService extends TransactionalService {
           amount.divide(BigDecimal.ONE.add(obligation.taxRate()), 2, RoundingMode.HALF_UP);
       BigDecimal tax = amount.subtract(subtotal);
       long payment = dao.insertPayment(c, obligation, request);
+      LocalDateTime issuedAt =
+          LocalDateTime.now(ZoneId.of("America/Bogota")).truncatedTo(ChronoUnit.SECONDS);
       long invoice =
-          dao.insertInvoice(c, payment, request, guardian, school, subtotal, tax, issueDate);
-      String number = "LH-%06d".formatted(invoice);
-      dao.identifyInvoice(c, invoice, number, cufe(number, school.nit(), issueDate, amount));
+          dao.insertInvoice(c, payment, request, customer, school, subtotal, tax, issuedAt);
+      String number = String.format(Locale.ROOT, "LH-%06d", invoice);
+      dao.identifyInvoice(
+          c, invoice, number, cufe(number, school.nit(), issuedAt.toLocalDate(), amount));
       dao.insertLine(
           c,
           invoice,
@@ -187,11 +190,11 @@ public final class FinanceService extends TransactionalService {
   }
 
   // Payment and invoice are already committed. File failures must never replay that transaction.
-  private static final Object[] PDF_LOCKS =
+  private static final Object[] INVOICE_LOCKS =
       java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
 
   private PaymentResult generate(long payment, long invoiceId) {
-    synchronized (PDF_LOCKS[(int) (invoiceId % PDF_LOCKS.length)]) {
+    synchronized (INVOICE_LOCKS[(int) (invoiceId % INVOICE_LOCKS.length)]) {
       return generateLocked(payment, invoiceId);
     }
   }
@@ -207,7 +210,7 @@ public final class FinanceService extends TransactionalService {
       transaction(
           c -> {
             require(
-                dao.markPdfGenerated(c, invoiceId, path, invoice.businessStatus()),
+                dao.markFileGenerated(c, invoiceId, path, invoice.businessStatus()),
                 "La factura cambió durante la generación; regenere el documento.");
             return null;
           });
@@ -216,8 +219,8 @@ public final class FinanceService extends TransactionalService {
           invoiceId,
           true,
           (invoice.businessStatus().equals("Anulada")
-                  ? "Anulación confirmada. PDF: "
-                  : "Pago confirmado. PDF: ")
+                  ? "Anulación confirmada. Factura: "
+                  : "Pago confirmado. Factura: ")
               + path);
     } catch (Exception error) {
       AppLogger.error("Invoice rendering failed for invoice " + invoiceId, error);
@@ -225,14 +228,14 @@ public final class FinanceService extends TransactionalService {
         transaction(
             c -> {
               require(
-                  dao.pdfStatus(c, invoiceId, "Fallida", null) > 0,
+                  dao.fileStatus(c, invoiceId, "Fallida", null) > 0,
                   "No se actualizó el estado de la factura " + invoiceId + ".");
               return null;
             });
       } catch (RuntimeException statusError) {
         AppLogger.error("Invoice failure status could not be stored", statusError);
         throw new BusinessException(
-            "Operación financiera confirmada, pero no se pudo guardar el estado del PDF."
+            "Operación financiera confirmada, pero no se pudo guardar el estado del archivo."
                 + " Revise error_log.txt y regenere la factura "
                 + invoiceId
                 + ". No registre otro pago.",
@@ -242,7 +245,7 @@ public final class FinanceService extends TransactionalService {
           payment,
           invoiceId,
           false,
-          "Operación financiera confirmada. PDF pendiente; regenere la factura "
+          "Operación financiera confirmada. Regenere el archivo de la factura "
               + invoiceId
               + ". No registre otro pago.");
     }
@@ -458,11 +461,11 @@ public final class FinanceService extends TransactionalService {
     long originalInvoice = transaction(c -> dao.invoiceId(c, id).orElseThrow());
     PaymentResult oldDocument = generate(id, originalInvoice);
     PaymentResult result = generate(stored.id(), stored.invoiceId());
-    if (!oldDocument.pdfGenerated())
+    if (!oldDocument.fileGenerated())
       return new PaymentResult(
           result.paymentId(),
           result.invoiceId(),
-          result.pdfGenerated(),
+          result.fileGenerated(),
           result.message() + " La factura anulada " + originalInvoice + " requiere regeneración.");
     return result;
   }

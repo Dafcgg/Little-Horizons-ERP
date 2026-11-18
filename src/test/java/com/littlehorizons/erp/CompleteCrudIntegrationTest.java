@@ -16,8 +16,6 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
@@ -55,7 +53,7 @@ class CompleteCrudIntegrationTest {
     return new FinanceService(
         connections,
         new JdbcFinanceDao(),
-        new PdfInvoiceGenerator(directory),
+        new TextInvoiceGenerator(directory),
         SchoolInformation.fromEnvironment());
   }
 
@@ -373,20 +371,20 @@ class CompleteCrudIntegrationTest {
   }
 
   @Test
-  void voidingPaymentsRestoresBalanceAndMarksPdfAsCancelled() throws Exception {
+  void voidingPaymentsRestoresBalanceAndMarksInvoiceFileAsCancelled() throws Exception {
     var finance = finance();
     long guardian = guardian(), student = student(guardian);
     long concept = finance.createConcept(unique(), "Concept", money("100.00"), BigDecimal.ZERO);
     long obligation =
         finance.createObligation(student, concept, LocalDate.now().minusMonths(2), unique());
     var original = finance.confirmPayment(request(obligation, guardian, "60.00"));
-    assertTrue(original.pdfGenerated());
+    assertTrue(original.fileGenerated());
     assertThrows(
         BusinessException.class,
         () -> finance.updateObligation(obligation, "Invalid", LocalDate.now(), money("59.00")));
     assertThrows(BusinessException.class, () -> finance.cancelObligation(obligation));
     var cancelled = finance.voidPayment(original.paymentId(), "Duplicate payment");
-    assertTrue(cancelled.pdfGenerated());
+    assertTrue(cancelled.fileGenerated());
     assertEquals("Anulado", finance.payment(original.paymentId()).status());
     Invoice invoice = finance.invoice(original.invoiceId());
     assertEquals("Anulada", invoice.businessStatus());
@@ -397,9 +395,9 @@ class CompleteCrudIntegrationTest {
             .findFirst()
             .orElseThrow()
             .balance());
-    try (var pdf = Loader.loadPDF(Path.of(invoice.path()).toFile())) {
-      assertTrue(new PDFTextStripper().getText(pdf).contains("FACTURA ANULADA"));
-    }
+    String text = TextInvoiceAssertions.validInvoice(invoice);
+    assertTrue(text.contains("FACTURA ANULADA"));
+    assertTrue(text.contains("Motivo de anulación: Duplicate payment"));
     assertEquals(
         original.invoiceId(), finance.voidInvoice(original.invoiceId(), "Retry").invoiceId());
     finance.cancelObligation(obligation);
@@ -416,7 +414,7 @@ class CompleteCrudIntegrationTest {
     var original = finance.confirmPayment(request(obligation, guardian, "60.00"));
     var replacement = request(obligation, guardian, "80.00");
     var corrected = finance.correctPayment(original.paymentId(), replacement, "Amount corrected");
-    assertTrue(corrected.pdfGenerated());
+    assertTrue(corrected.fileGenerated());
     assertNotEquals(original.paymentId(), corrected.paymentId());
     assertEquals("Anulado", finance.payment(original.paymentId()).status());
     assertEquals(original.paymentId(), finance.payment(corrected.paymentId()).originalPaymentId());
@@ -441,7 +439,7 @@ class CompleteCrudIntegrationTest {
   }
 
   @Test
-  void failedCancelledPdfRetainsReversalAndCanBeRegenerated() {
+  void failedCancelledFileRetainsReversalAndCanBeRegenerated() {
     var working = finance();
     long guardian = guardian(), student = student(guardian);
     long obligation = working.createObligation(student, 1, LocalDate.now(), unique());
@@ -454,10 +452,10 @@ class CompleteCrudIntegrationTest {
               throw new IOException("Disk failure");
             },
             SchoolInformation.fromEnvironment());
-    assertFalse(failing.voidPayment(payment.paymentId(), "Reverse").pdfGenerated());
+    assertFalse(failing.voidPayment(payment.paymentId(), "Reverse").fileGenerated());
     assertEquals("Anulado", working.payment(payment.paymentId()).status());
     assertEquals("Fallida", working.invoice(payment.invoiceId()).status());
-    assertTrue(working.regenerate(payment.invoiceId()).pdfGenerated());
+    assertTrue(working.regenerate(payment.invoiceId()).fileGenerated());
     assertEquals("Anulada", working.invoice(payment.invoiceId()).businessStatus());
   }
 
@@ -613,7 +611,7 @@ class CompleteCrudIntegrationTest {
     try (Connection c = connections.open()) {
       c.setAutoCommit(false);
       assertFalse(
-          new JdbcFinanceDao().markPdfGenerated(c, payment.invoiceId(), "stale.pdf", "Emitida"));
+          new JdbcFinanceDao().markFileGenerated(c, payment.invoiceId(), "stale.txt", "Emitida"));
       c.rollback();
     }
     assertEquals("Anulada", finance.invoice(payment.invoiceId()).businessStatus());

@@ -7,6 +7,8 @@ import java.math.*;
 import java.sql.*;
 import java.time.*;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class JdbcFinanceDao implements FinanceDao {
   public long createConcept(
@@ -153,21 +155,25 @@ SELECT p.*,f.id_factura FROM pagos p JOIN facturas f ON f.id_pago=p.id_pago WHER
         .findFirst();
   }
 
-  public Optional<Guardian> responsible(Connection c, long student, long guardian)
+  public Optional<InvoiceCustomer> responsible(Connection c, long student, long guardian)
       throws SQLException {
     return Jdbc.query(
             c,
             """
-SELECT a.* FROM acudientes a JOIN estudiante_acudiente ea ON ea.id_acudiente=a.id_acudiente WHERE
+SELECT a.numero_documento,a.primer_nombre,a.segundo_nombre,
+       a.primer_apellido,a.segundo_apellido,a.direccion
+FROM acudientes a JOIN estudiante_acudiente ea ON ea.id_acudiente=a.id_acudiente WHERE
 ea.id_estudiante=? AND a.id_acudiente=? AND ea.es_responsable_financiero=TRUE AND a.esta_activo=TRUE
 """,
             r ->
-                new Guardian(
-                    r.getLong("id_acudiente"),
+                new InvoiceCustomer(
+                    Stream.of(
+                            r.getString("primer_nombre"), r.getString("segundo_nombre"),
+                            r.getString("primer_apellido"), r.getString("segundo_apellido"))
+                        .filter(name -> name != null && !name.isBlank())
+                        .map(String::strip)
+                        .collect(Collectors.joining(" ")),
                     r.getString("numero_documento"),
-                    r.getString("primer_nombre"),
-                    r.getString("primer_apellido"),
-                    r.getString("telefono_principal"),
                     r.getString("direccion")),
             student,
             guardian)
@@ -197,25 +203,26 @@ VALUES(?,?,?,?,?,?,?,?)
       Connection c,
       long payment,
       PaymentRequest request,
-      Guardian g,
+      InvoiceCustomer customer,
       SchoolInformation s,
       BigDecimal subtotal,
       BigDecimal tax,
-      LocalDate issueDate)
+      LocalDateTime issuedAt)
       throws SQLException {
     return Jdbc.insert(
         c,
         """
 INSERT INTO
-facturas(numero_factura,id_pago,fecha_emision,cliente_nombre,cliente_documento,cliente_direccion,colegio_nombre,colegio_nit,colegio_direccion,colegio_telefono,colegio_correo,subtotal,iva,total,estado_pdf)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
+facturas(numero_factura,id_pago,fecha_emision,hora_emision,cliente_nombre,cliente_documento,cliente_direccion,colegio_nombre,colegio_nit,colegio_direccion,colegio_telefono,colegio_correo,subtotal,iva,total,estado_archivo)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
 """,
         UUID.randomUUID().toString(),
         payment,
-        issueDate,
-        g.firstName() + " " + g.lastName(),
-        g.document(),
-        Objects.toString(g.address(), ""),
+        issuedAt.toLocalDate(),
+        issuedAt.toLocalTime(),
+        customer.fullName(),
+        customer.document(),
+        Objects.toString(customer.address(), ""),
         s.name(),
         s.nit(),
         s.address(),
@@ -269,6 +276,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
                     r.getLong("id_pago"),
                     r.getString("numero_factura"),
                     r.getObject("fecha_emision", LocalDate.class),
+                    r.getObject("hora_emision", LocalTime.class),
                     r.getString("cliente_nombre"),
                     r.getString("cliente_documento"),
                     r.getString("cliente_direccion"),
@@ -281,7 +289,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
                     r.getBigDecimal("iva"),
                     r.getBigDecimal("total"),
                     r.getString("cufe"),
-                    r.getString("estado_pdf"),
+                    r.getString("estado_archivo"),
                     r.getString("ruta_archivo"),
                     lines,
                     r.getString("estado_factura"),
@@ -291,12 +299,12 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
         .findFirst();
   }
 
-  public int pdfStatus(Connection c, long id, String status, String path) throws SQLException {
+  public int fileStatus(Connection c, long id, String status, String path) throws SQLException {
     return Jdbc.update(
         c,
         """
-        UPDATE facturas SET estado_pdf=?,ruta_archivo=COALESCE(?,ruta_archivo),
-            nombre_archivo_pdf=COALESCE(?,nombre_archivo_pdf)
+        UPDATE facturas SET estado_archivo=?,ruta_archivo=COALESCE(?,ruta_archivo),
+            nombre_archivo=COALESCE(?,nombre_archivo)
         WHERE id_factura=?
         """,
         status,
@@ -520,7 +528,7 @@ UPDATE obligaciones SET referencia=?,fecha_vencimiento=?,monto=?,estado=? WHERE 
       Jdbc.update(
           c,
           """
-UPDATE facturas SET estado_factura='Anulada',motivo_anulacion=?,estado_pdf='Fallida' WHERE id_pago=?
+UPDATE facturas SET estado_factura='Anulada',motivo_anulacion=?,estado_archivo='Fallida' WHERE id_pago=?
 """,
           reason,
           id);
@@ -550,7 +558,7 @@ SELECT id_estudiante FROM estudiantes WHERE id_estudiante=? AND estado='Activo' 
         .isEmpty();
   }
 
-  public boolean markPdfGenerated(Connection c, long id, String path, String expectedState)
+  public boolean markFileGenerated(Connection c, long id, String path, String expectedState)
       throws SQLException {
     if (Jdbc.query(
             c,
@@ -559,6 +567,6 @@ SELECT id_estudiante FROM estudiantes WHERE id_estudiante=? AND estado='Activo' 
             id,
             expectedState)
         .isEmpty()) return false;
-    return pdfStatus(c, id, "Generada", path) > 0;
+    return fileStatus(c, id, "Generada", path) > 0;
   }
 }

@@ -2,9 +2,6 @@ package com.littlehorizons.erp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.google.zxing.*;
-import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
-import com.google.zxing.common.HybridBinarizer;
 import com.littlehorizons.erp.dao.jdbc.*;
 import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.service.*;
@@ -16,9 +13,6 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
@@ -189,16 +183,16 @@ class DatabaseIntegrationTest {
             PaymentMethod.TRANSFER,
             receipt);
     PaymentResult first = failing.confirmPayment(request);
-    assertFalse(first.pdfGenerated());
+    assertFalse(first.fileGenerated());
     assertEquals(1, count("SELECT COUNT(*) FROM pagos WHERE numero_recibo=?", receipt));
     var working =
         new FinanceService(
             connections,
             dao,
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     PaymentResult retried = working.confirmPayment(request);
-    assertTrue(retried.pdfGenerated());
+    assertTrue(retried.fileGenerated());
     assertEquals(first.paymentId(), retried.paymentId());
     assertEquals(first.invoiceId(), retried.invoiceId());
     assertEquals(1, count("SELECT COUNT(*) FROM facturas WHERE id_pago=?", first.paymentId()));
@@ -206,28 +200,10 @@ class DatabaseIntegrationTest {
       Invoice invoice = dao.invoice(c, first.invoiceId()).orElseThrow();
       assertEquals(new BigDecimal("80.00"), invoice.subtotal());
       assertEquals(new BigDecimal("15.20"), invoice.tax());
-      try (var pdf = Loader.loadPDF(Path.of(invoice.path()).toFile())) {
-        String text = new PDFTextStripper().getText(pdf);
-        assertTrue(text.contains("SIN VALIDACION DIAN"));
-        assertTrue(text.contains(invoice.cufe()));
-        assertTrue(text.contains("95.20"));
-        boolean decoded = false;
-        for (var name : pdf.getPage(0).getResources().getXObjectNames()) {
-          var object = pdf.getPage(0).getResources().getXObject(name);
-          if (object instanceof PDImageXObject image) {
-            String payload =
-                new MultiFormatReader()
-                    .decode(
-                        new BinaryBitmap(
-                            new HybridBinarizer(
-                                new BufferedImageLuminanceSource(image.getImage()))))
-                    .getText();
-            assertEquals(PdfInvoiceGenerator.qrPayload(invoice), payload);
-            decoded = true;
-          }
-        }
-        assertTrue(decoded);
-      }
+      String text = TextInvoiceAssertions.validInvoice(invoice);
+      assertTrue(text.contains("Subtotal: COP 80.00"));
+      assertTrue(text.contains("IVA: COP 15.20"));
+      assertTrue(text.contains("Total: COP 95.20"));
     }
     assertThrows(
         BusinessException.class,
@@ -248,7 +224,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             new JdbcFinanceDao(),
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long obligation =
         service.createObligation(student(), 1, LocalDate.now().minusMonths(2), unique());
@@ -263,7 +239,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             new JdbcFinanceDao(),
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long obligation = service.createObligation(student(), 1, LocalDate.now(), unique());
     List<Boolean> results =
@@ -355,7 +331,7 @@ class DatabaseIntegrationTest {
         new SchoolInformation("X".repeat(300), "DEMO", "Street", "Phone", "school@example.invalid");
     var service =
         new FinanceService(
-            connections, new JdbcFinanceDao(), new PdfInvoiceGenerator(directory), invalidSchool);
+            connections, new JdbcFinanceDao(), new TextInvoiceGenerator(directory), invalidSchool);
     long obligation = service.createObligation(student(), 1, LocalDate.now(), unique());
     String receipt = unique();
     assertThrows(
@@ -390,7 +366,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             dao,
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long concept =
         service.createConcept(
@@ -406,7 +382,7 @@ class DatabaseIntegrationTest {
                 LocalDate.now(),
                 PaymentMethod.CASH,
                 unique()));
-    assertTrue(first.pdfGenerated());
+    assertTrue(first.fileGenerated());
     assertEquals(
         new BigDecimal("60.00"),
         service.overdue().stream()
@@ -434,7 +410,7 @@ class DatabaseIntegrationTest {
                     LocalDate.now(),
                     PaymentMethod.CASH,
                     unique()))
-            .pdfGenerated());
+            .fileGenerated());
     assertTrue(service.overdue().stream().noneMatch(b -> b.obligationId() == obligation));
   }
 
@@ -444,7 +420,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             new JdbcFinanceDao(),
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long student = student();
     long concept =
@@ -509,7 +485,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             new JdbcFinanceDao(),
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long student = student();
     long concept =
@@ -565,7 +541,7 @@ class DatabaseIntegrationTest {
         new FinanceService(
             connections,
             new JdbcFinanceDao(),
-            new PdfInvoiceGenerator(directory),
+            new TextInvoiceGenerator(directory),
             SchoolInformation.fromEnvironment());
     long obligation = service.createObligation(student(), 1, LocalDate.now(), unique());
     var request =
@@ -573,8 +549,8 @@ class DatabaseIntegrationTest {
             obligation, 1, new BigDecimal("1.00"), LocalDate.now(), PaymentMethod.CHEQUE, unique());
     var first = service.confirmPayment(request);
     var second = service.confirmPayment(request);
-    assertTrue(first.pdfGenerated());
-    assertTrue(second.pdfGenerated());
+    assertTrue(first.fileGenerated());
+    assertTrue(second.fileGenerated());
     assertEquals(first.paymentId(), second.paymentId());
     try (Connection c = connections.open()) {
       var invoice = new JdbcFinanceDao().invoice(c, first.invoiceId()).orElseThrow();
@@ -586,7 +562,7 @@ class DatabaseIntegrationTest {
           Path.of(invoice.path()).getFileName().toString(),
           Jdbc.query(
                   c,
-                  "SELECT nombre_archivo_pdf FROM facturas WHERE id_factura=?",
+                  "SELECT nombre_archivo FROM facturas WHERE id_factura=?",
                   r -> r.getString(1),
                   invoice.id())
               .get(0));
