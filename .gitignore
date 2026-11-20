@@ -8,6 +8,8 @@ error_log.txt
 !/invoices/.gitkeep
 /facturas/*
 !/facturas/.gitkeep
+/reports/*.txt
+!/reports/.gitkeep
 *.tmp
 
 # Local credentials and editor settings
