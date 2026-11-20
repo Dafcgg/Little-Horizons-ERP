@@ -6,6 +6,7 @@ import com.littlehorizons.erp.controller.*;
 import com.littlehorizons.erp.dao.jdbc.*;
 import com.littlehorizons.erp.service.*;
 import com.littlehorizons.erp.util.*;
+import com.littlehorizons.erp.view.AttendanceImportView;
 import com.littlehorizons.erp.view.ConsoleView;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,6 +32,12 @@ public final class Main {
   }
 
   static void run(ConsoleView view, ConnectionProvider connections, InvoiceRenderer renderer) {
+    run(view, connections, renderer, Path.of("."));
+  }
+
+  static void run(
+      ConsoleView view, ConnectionProvider connections, InvoiceRenderer renderer,
+      Path projectDirectory) {
     // The same composition serves both the interactive entry point and the console integration tests.
     var studentService = new StudentService(connections, new JdbcStudentDao());
     var academicService = new AcademicService(connections, new JdbcAcademicDao());
@@ -44,6 +51,10 @@ public final class Main {
     var activities = new ActivityController(activityService, view);
     var finance = new FinanceController(financeService, view);
     var resources = new ResourceController(resourceService, view);
+    var attendanceImport =
+        new AttendanceImportController(
+            new AttendanceImportService(connections, new JdbcAttendanceImportDao()),
+            new AttendanceImportView(view), projectDirectory);
     Runnable administration =
         () ->
             view.menu(
@@ -76,7 +87,8 @@ public final class Main {
           new Action("Clubes y eventos", activities::run),
           new Action("Finanzas y facturación", finance::run),
           new Action("Inventario y préstamos", resources::run),
-          new Action("Administración, edición e inactivación", administration));
+          new Action("Administración, edición e inactivación", administration),
+          new Action("TEST - Importar Asistencias desde CSV", attendanceImport::run));
     } catch (ConsoleView.EndOfInput ignored) {
       view.show("Fin de entrada.");
     }

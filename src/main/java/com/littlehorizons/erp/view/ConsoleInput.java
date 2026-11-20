@@ -32,6 +32,13 @@ final class ConsoleInput {
     return value;
   }
 
+  void awaitEnter() {
+    while (scanner.hasNextLine()) {
+      if (scanner.nextLine().isEmpty()) return;
+    }
+    throw new ConsoleView.EndOfInput();
+  }
+
   private <T> T parse(String label, Function<String, T> parser) {
     // Read outside the validation block so cancellation and EOF interrupt the entire form.
     while (true) {
