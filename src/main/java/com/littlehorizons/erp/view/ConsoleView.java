@@ -42,6 +42,11 @@ public final class ConsoleView {
     return input.read(label);
   }
 
+  public void awaitEnter() {
+    output.flush();
+    input.awaitEnter();
+  }
+
   public String required(String label) {
     return input.required(label);
   }

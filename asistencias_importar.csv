@@ -1,0 +1,11 @@
+id_estudiante;id_materia;fecha;estado
+1;1;2026-02-03;Presente
+2;2;2026-02-03;Ausente
+3;3;2026-02-03;Tardanza
+4;4;2026-02-03;Excusa Médica
+5;5;2026-02-03;Presente
+6;6;2026-02-03;Ausente
+7;7;2026-02-03;Tardanza
+8;8;2026-02-03;Excusa Médica
+9;9;2026-02-03;Presente
+10;10;2026-02-03;Ausente
