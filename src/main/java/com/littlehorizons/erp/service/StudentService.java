@@ -7,6 +7,7 @@ import com.littlehorizons.erp.util.JdbcTransactionManager.Work;
 import java.time.*;
 import java.util.*;
 
+/** Keeps student records, guardian links, and enrollment changes consistent. */
 public final class StudentService extends TransactionalService {
   private final StudentDao dao;
 
@@ -15,6 +16,7 @@ public final class StudentService extends TransactionalService {
     this.dao = dao;
   }
 
+  /** Creates the student and their first active guardian link atomically. */
   public long register(Student student, long guardianId, String relationship) {
     validate(student);
     text(relationship, "Parentesco", 50);
@@ -188,6 +190,7 @@ public final class StudentService extends TransactionalService {
     return transaction(c -> dao.links(c, student));
   }
 
+  /** Serializes edits to guardian links and restores a principal contact when necessary. */
   public void saveLink(GuardianLink link) {
     require(link != null, "Vínculo obligatorio.");
     text(link.relationship(), "Parentesco", 50);
@@ -211,6 +214,7 @@ public final class StudentService extends TransactionalService {
         });
   }
 
+  /** Removes the relationship only if another active guardian remains linked. */
   public void removeLink(long student, long guardian) {
     transaction(
         c -> {

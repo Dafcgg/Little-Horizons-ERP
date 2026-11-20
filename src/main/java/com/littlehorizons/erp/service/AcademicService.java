@@ -8,7 +8,10 @@ import java.time.*;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
+/** Manages academic records and reports and exposes scheduling to the console controllers. */
 public final class AcademicService extends TransactionalService {
+  private final AcademicScheduling scheduling;
+
   private final AcademicDao dao;
   private final Clock clock;
 
@@ -19,6 +22,7 @@ public final class AcademicService extends TransactionalService {
   public AcademicService(ConnectionProvider connections, AcademicDao dao, Clock clock) {
     super(connections);
     this.dao = dao;
+    this.scheduling = new AcademicScheduling(connections, dao);
     this.clock = Objects.requireNonNull(clock);
   }
 
@@ -62,50 +66,7 @@ public final class AcademicService extends TransactionalService {
       int day,
       LocalTime start,
       LocalTime end) {
-    require(year >= 2000 && year <= 2100 && day >= 1 && day <= 7, "Año o día inválido.");
-    text(section, "Grupo", 10);
-    requireValidSchedule(day, start, end);
-    transaction(
-        c -> {
-          // Lock in a stable order before checking competing assignments.
-          long grade =
-              dao.lockGrade(c, subject)
-                  .orElseThrow(
-                      () ->
-                          new com.littlehorizons.erp.util.BusinessException(
-                              "Materia no disponible."));
-          require(dao.lockTeacher(c, teacher), "Profesor no disponible.");
-          require(
-              !dao.hasScheduleConflict(c, teacher, grade, year, section, day, start, end),
-              "Cruce de horario del profesor o grupo.");
-          var previous =
-              dao.assignments(c).stream()
-                  .filter(
-                      a ->
-                          a.teacherId() == teacher
-                              && a.subjectId() == subject
-                              && a.year() == year
-                              && a.section().equals(section))
-                  .findFirst();
-          if (previous.isPresent() && !previous.get().active()) {
-            for (var oldSchedule : dao.schedules(c))
-              if (oldSchedule.assignmentId() == previous.get().id())
-                require(
-                    !dao.scheduleConflict(
-                        c,
-                        teacher,
-                        grade,
-                        year,
-                        section,
-                        oldSchedule.day(),
-                        oldSchedule.start(),
-                        oldSchedule.end(),
-                        oldSchedule.id()),
-                    "La reactivación causaría un cruce de horario existente.");
-          }
-          dao.assign(c, teacher, subject, year, section, day, start, end);
-          return null;
-        });
+    scheduling.assign(teacher, subject, year, section, day, start, end);
   }
 
   public void subscribe(
@@ -141,12 +102,14 @@ public final class AcademicService extends TransactionalService {
                   record.period()),
               "Profesor no asignado o estudiante no inscrito.");
           dao.saveGrade(c, record);
+          // A previously closed subject must be recalculated after a period grade changes.
           dao.deleteGrade(
               c, record.studentId(), record.subjectId(), record.year(), AcademicPeriod.FINAL);
           return null;
         });
   }
 
+  /** Applies the same DECIMAL precision in the console and in direct service calls. */
   public static void validateGrade(BigDecimal grade) {
     require(
         grade != null
@@ -185,6 +148,7 @@ public final class AcademicService extends TransactionalService {
     return transaction(c -> dao.history(c, student));
   }
 
+  /** A partial average uses available periods and excludes the separately stored final grade. */
   public Optional<BigDecimal> subjectAverage(long student, long subject, int year) {
     return average(
         history(student).stream()
@@ -224,6 +188,7 @@ public final class AcademicService extends TransactionalService {
                 .divide(BigDecimal.valueOf(grades.size()), 1, RoundingMode.HALF_UP));
   }
 
+  /** Uses the school's calendar week, including both Monday and Sunday. */
   public List<String> currentWeekAbsences() {
     LocalDate start = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     return absences(start, start.plusDays(6), 3);
@@ -324,123 +289,27 @@ public final class AcademicService extends TransactionalService {
   }
 
   public List<TeachingAssignment> assignments() {
-    return transaction(dao::assignments);
+    return scheduling.assignments();
   }
 
   public List<ClassSchedule> schedules() {
-    return transaction(dao::schedules);
+    return scheduling.schedules();
   }
 
   public void updateAssignment(TeachingAssignment entry) {
-    require(entry != null, "Asignación obligatoria.");
-    text(entry.section(), "Grupo", 10);
-    require(entry.year() >= 2000 && entry.year() <= 2100, "Año inválido.");
-    transaction(
-        c -> {
-          TeachingAssignment old =
-              dao.assignment(c, entry.id(), true)
-                  .orElseThrow(
-                      () ->
-                          new com.littlehorizons.erp.util.BusinessException(
-                              "Asignación inexistente."));
-          boolean changed =
-              old.teacherId() != entry.teacherId()
-                  || old.subjectId() != entry.subjectId()
-                  || old.year() != entry.year()
-                  || !old.section().equals(entry.section());
-          require(
-              !changed || !dao.assignmentHasHistory(c, old),
-              "La asignación con estudiantes inscritos conserva sus datos; inactívela y cree"
-                  + " otra.");
-          long grade =
-              dao.lockGrade(c, entry.subjectId())
-                  .orElseThrow(
-                      () ->
-                          new com.littlehorizons.erp.util.BusinessException(
-                              "Materia no disponible."));
-          if (entry.active()) {
-            require(dao.lockTeacher(c, entry.teacherId()), "Profesor inactivo.");
-            for (ClassSchedule schedule : dao.schedules(c)) {
-              if (schedule.assignmentId() == entry.id())
-                require(
-                    !dao.scheduleConflict(
-                        c,
-                        entry.teacherId(),
-                        grade,
-                        entry.year(),
-                        entry.section(),
-                        schedule.day(),
-                        schedule.start(),
-                        schedule.end(),
-                        schedule.id()),
-                    "Cruce de horario.");
-            }
-          }
-          dao.updateAssignment(c, entry);
-          return null;
-        });
+    scheduling.updateAssignment(entry);
   }
 
   public void deactivateAssignment(long id) {
-    transaction(
-        c -> {
-          TeachingAssignment a =
-              dao.assignment(c, id, true)
-                  .orElseThrow(
-                      () ->
-                          new com.littlehorizons.erp.util.BusinessException(
-                              "Asignación inexistente."));
-          dao.updateAssignment(
-              c,
-              new TeachingAssignment(
-                  id, a.teacherId(), a.subjectId(), a.year(), a.section(), false));
-          return null;
-        });
-  }
-
-  private static void requireValidSchedule(int day, LocalTime start, LocalTime end) {
-    require(
-        day >= 1 && day <= 7 && start != null && end != null && start.isBefore(end),
-        "Horario inválido.");
-    require(start.getNano() == 0 && end.getNano() == 0, "El horario admite hasta segundos.");
+    scheduling.deactivateAssignment(id);
   }
 
   public void updateSchedule(long id, int day, LocalTime start, LocalTime end) {
-    requireValidSchedule(day, start, end);
-    transaction(
-        c -> {
-          ClassSchedule old =
-              dao.schedule(c, id)
-                  .orElseThrow(
-                      () ->
-                          new com.littlehorizons.erp.util.BusinessException(
-                              "Horario inexistente."));
-          TeachingAssignment a = dao.assignment(c, old.assignmentId(), true).orElseThrow();
-          if (!a.active()) {
-            dao.updateSchedule(c, new ClassSchedule(id, a.id(), day, start, end));
-            return null;
-          }
-          long grade =
-              dao.lockGrade(c, a.subjectId())
-                  .orElseThrow(
-                      () -> new com.littlehorizons.erp.util.BusinessException("Materia inactiva."));
-          require(
-              a.active() && dao.lockTeacher(c, a.teacherId()), "Asignación o profesor inactivo.");
-          require(
-              !dao.scheduleConflict(
-                  c, a.teacherId(), grade, a.year(), a.section(), day, start, end, id),
-              "Cruce de horario.");
-          dao.updateSchedule(c, new ClassSchedule(id, a.id(), day, start, end));
-          return null;
-        });
+    scheduling.updateSchedule(id, day, start, end);
   }
 
   public void deleteSchedule(long id) {
-    transaction(
-        c -> {
-          require(dao.deleteSchedule(c, id) == 1, "Horario inexistente.");
-          return null;
-        });
+    scheduling.deleteSchedule(id);
   }
 
   public List<Subscription> subscriptions(long student) {
@@ -521,6 +390,7 @@ public final class AcademicService extends TransactionalService {
         });
   }
 
+  /** Stores a final grade only after all four periods have been recorded. */
   public BigDecimal closeSubject(long student, long subject, int year) {
     return transaction(
         c -> {

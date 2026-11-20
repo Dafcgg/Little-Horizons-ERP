@@ -5,6 +5,7 @@ import com.littlehorizons.erp.util.JdbcTransactionManager.Work;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
+/** Shares transaction execution and input rules across application services. */
 public abstract class TransactionalService {
   private final JdbcTransactionManager transactions;
 
@@ -32,6 +33,7 @@ public abstract class TransactionalService {
   }
 
   protected static void textLength(String value, String field, int limit) {
+    // A supplementary Unicode character uses two Java code units but one VARCHAR character.
     require(
         value == null || value.codePointCount(0, value.length()) <= limit,
         field + " admite máximo " + limit + " caracteres.");
@@ -44,6 +46,7 @@ public abstract class TransactionalService {
   }
 
   protected static boolean isDatabaseDate(LocalDate date) {
+    // LocalDate supports values outside MySQL DATE's supported range.
     return date != null && date.getYear() >= 1000 && date.getYear() <= 9999;
   }
 }

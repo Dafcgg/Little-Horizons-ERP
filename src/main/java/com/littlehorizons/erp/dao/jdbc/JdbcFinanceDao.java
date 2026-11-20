@@ -10,7 +10,10 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/** Handles balances and payments and delegates invoice persistence on the same connection. */
 public final class JdbcFinanceDao implements FinanceDao {
+  private final JdbcInvoiceQueries invoiceQueries = new JdbcInvoiceQueries();
+
   public long createConcept(
       Connection c, String code, String name, BigDecimal amount, BigDecimal rate)
       throws SQLException {
@@ -209,108 +212,24 @@ VALUES(?,?,?,?,?,?,?,?)
       BigDecimal tax,
       LocalDateTime issuedAt)
       throws SQLException {
-    return Jdbc.insert(
-        c,
-        """
-INSERT INTO
-facturas(numero_factura,id_pago,fecha_emision,hora_emision,cliente_nombre,cliente_documento,cliente_direccion,colegio_nombre,colegio_nit,colegio_direccion,colegio_telefono,colegio_correo,subtotal,iva,total,estado_archivo)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente')
-""",
-        UUID.randomUUID().toString(),
-        payment,
-        issuedAt.toLocalDate(),
-        issuedAt.toLocalTime(),
-        customer.fullName(),
-        customer.document(),
-        Objects.toString(customer.address(), ""),
-        s.name(),
-        s.nit(),
-        s.address(),
-        s.phone(),
-        s.email(),
-        subtotal,
-        tax,
-        request.amount());
+    return invoiceQueries.insertInvoice(c, payment, request, customer, s, subtotal, tax, issuedAt);
   }
 
   public void identifyInvoice(Connection c, long id, String number, String cufe)
       throws SQLException {
-    Jdbc.update(
-        c, "UPDATE facturas SET numero_factura=?,cufe=? WHERE id_factura=?", number, cufe, id);
+    invoiceQueries.identifyInvoice(c, id, number, cufe);
   }
 
   public void insertLine(Connection c, long invoice, InvoiceLine line) throws SQLException {
-    Jdbc.update(
-        c,
-        """
-        INSERT INTO detalles_factura(id_factura,descripcion,cantidad,valor_unitario,subtotal,iva)
-        VALUES(?,?,?,?,?,?)
-        """,
-        invoice,
-        line.description(),
-        line.quantity(),
-        line.unitPrice(),
-        line.subtotal(),
-        line.tax());
+    invoiceQueries.insertLine(c, invoice, line);
   }
 
   public Optional<Invoice> invoice(Connection c, long id) throws SQLException {
-    List<InvoiceLine> lines =
-        Jdbc.query(
-            c,
-            "SELECT * FROM detalles_factura WHERE id_factura=? ORDER BY id_detalle",
-            r ->
-                new InvoiceLine(
-                    r.getString("descripcion"),
-                    r.getInt("cantidad"),
-                    r.getBigDecimal("valor_unitario"),
-                    r.getBigDecimal("subtotal"),
-                    r.getBigDecimal("iva")),
-            id);
-    return Jdbc.query(
-            c,
-            "SELECT * FROM facturas WHERE id_factura=?",
-            r ->
-                new Invoice(
-                    r.getLong("id_factura"),
-                    r.getLong("id_pago"),
-                    r.getString("numero_factura"),
-                    r.getObject("fecha_emision", LocalDate.class),
-                    r.getObject("hora_emision", LocalTime.class),
-                    r.getString("cliente_nombre"),
-                    r.getString("cliente_documento"),
-                    r.getString("cliente_direccion"),
-                    r.getString("colegio_nombre"),
-                    r.getString("colegio_nit"),
-                    r.getString("colegio_direccion"),
-                    r.getString("colegio_telefono"),
-                    r.getString("colegio_correo"),
-                    r.getBigDecimal("subtotal"),
-                    r.getBigDecimal("iva"),
-                    r.getBigDecimal("total"),
-                    r.getString("cufe"),
-                    r.getString("estado_archivo"),
-                    r.getString("ruta_archivo"),
-                    lines,
-                    r.getString("estado_factura"),
-                    r.getString("motivo_anulacion")),
-            id)
-        .stream()
-        .findFirst();
+    return invoiceQueries.invoice(c, id);
   }
 
   public int fileStatus(Connection c, long id, String status, String path) throws SQLException {
-    return Jdbc.update(
-        c,
-        """
-        UPDATE facturas SET estado_archivo=?,ruta_archivo=COALESCE(?,ruta_archivo),
-            nombre_archivo=COALESCE(?,nombre_archivo)
-        WHERE id_factura=?
-        """,
-        status,
-        path,
-        path == null ? null : java.nio.file.Path.of(path).getFileName().toString(),
-        id);
+    return invoiceQueries.fileStatus(c, id, status, path);
   }
 
   public List<Balance> balances(Connection c, LocalDate cutoff) throws SQLException {
@@ -508,10 +427,7 @@ UPDATE obligaciones SET referencia=?,fecha_vencimiento=?,monto=?,estado=? WHERE 
   }
 
   public Optional<Long> invoiceId(Connection c, long payment) throws SQLException {
-    return Jdbc.query(
-            c, "SELECT id_factura FROM facturas WHERE id_pago=?", r -> r.getLong(1), payment)
-        .stream()
-        .findFirst();
+    return invoiceQueries.invoiceId(c, payment);
   }
 
   public int voidPayment(Connection c, long id, String reason) throws SQLException {
@@ -524,14 +440,7 @@ UPDATE obligaciones SET referencia=?,fecha_vencimiento=?,monto=?,estado=? WHERE 
             """,
             reason,
             id);
-    if (changed > 0)
-      Jdbc.update(
-          c,
-          """
-UPDATE facturas SET estado_factura='Anulada',motivo_anulacion=?,estado_archivo='Fallida' WHERE id_pago=?
-""",
-          reason,
-          id);
+    if (changed > 0) invoiceQueries.cancelForPayment(c, id, reason);
     return changed;
   }
 
@@ -540,11 +449,7 @@ UPDATE facturas SET estado_factura='Anulada',motivo_anulacion=?,estado_archivo='
   }
 
   public List<Invoice> invoices(Connection c) throws SQLException {
-    var ids =
-        Jdbc.query(c, "SELECT id_factura FROM facturas ORDER BY id_factura", r -> r.getLong(1));
-    List<Invoice> result = new ArrayList<>();
-    for (long id : ids) result.add(invoice(c, id).orElseThrow());
-    return result;
+    return invoiceQueries.invoices(c);
   }
 
   public boolean activeStudent(Connection c, long student) throws SQLException {
@@ -560,13 +465,6 @@ SELECT id_estudiante FROM estudiantes WHERE id_estudiante=? AND estado='Activo' 
 
   public boolean markFileGenerated(Connection c, long id, String path, String expectedState)
       throws SQLException {
-    if (Jdbc.query(
-            c,
-            "SELECT id_factura FROM facturas WHERE id_factura=? AND estado_factura=? FOR UPDATE",
-            r -> r.getLong(1),
-            id,
-            expectedState)
-        .isEmpty()) return false;
-    return fileStatus(c, id, "Generada", path) > 0;
+    return invoiceQueries.markFileGenerated(c, id, path, expectedState);
   }
 }

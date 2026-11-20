@@ -4,6 +4,7 @@ import com.littlehorizons.erp.model.*;
 import java.sql.*;
 import java.util.*;
 
+/** Stores student, guardian, and enrollment data on the service's transaction connection. */
 public interface StudentDao {
   long createStudent(Connection connection, Student student) throws SQLException;
 
@@ -22,6 +23,7 @@ public interface StudentDao {
 
   List<Guardian> findGuardians(Connection connection) throws SQLException;
 
+  /** Locks the student while changing their status, enrollment, or guardian links. */
   Optional<Student> lockStudent(Connection c, long id) throws SQLException;
 
   Optional<Guardian> lockGuardian(Connection c, long id) throws SQLException;
@@ -36,6 +38,7 @@ public interface StudentDao {
 
   int deleteLink(Connection c, long student, long guardian) throws SQLException;
 
+  /** Counts remaining active guardians when a relationship is about to be removed. */
   int activeGuardians(Connection c, long student, long excluded) throws SQLException;
 
   List<Long> guardianStudents(Connection c, long guardian) throws SQLException;
@@ -44,6 +47,7 @@ public interface StudentDao {
 
   Optional<Enrollment> lockEnrollment(Connection c, long id) throws SQLException;
 
+  /** Detects academic history that keeps an enrollment tied to its original grade. */
   boolean hasSubscriptions(Connection c, long student, int year) throws SQLException;
 
   int updateEnrollment(Connection c, Enrollment enrollment) throws SQLException;

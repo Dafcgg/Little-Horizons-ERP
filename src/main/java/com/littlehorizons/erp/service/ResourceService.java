@@ -6,6 +6,7 @@ import com.littlehorizons.erp.util.*;
 import java.time.*;
 import java.util.*;
 
+/** Coordinates inventory status with both student and teacher loans. */
 public final class ResourceService extends TransactionalService {
   private final ResourceDao dao;
 
@@ -31,6 +32,7 @@ public final class ResourceService extends TransactionalService {
     return transaction(dao::resources);
   }
 
+  /** Uses the resource row as a common lock for both types of borrower. */
   public long lend(long resource, long borrower, BorrowerType type, LocalDate due) {
     require(
         type != null && isDatabaseDate(due) && !due.isBefore(LocalDate.now()),

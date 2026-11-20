@@ -7,6 +7,10 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 
+/**
+ * Stores obligations, payments, and invoice snapshots. Multi-step updates receive the same
+ * connection so the service can commit or roll back the complete operation.
+ */
 public interface FinanceDao {
   long createConcept(Connection c, String code, String name, BigDecimal amount, BigDecimal taxRate)
       throws SQLException;
@@ -15,6 +19,7 @@ public interface FinanceDao {
 
   void setFee(Connection c, long student, long concept, BigDecimal amount) throws SQLException;
 
+  /** Uses the student's fee override when one is configured, including a zero amount. */
   Optional<FeeQuote> quote(Connection c, long student, long concept) throws SQLException;
 
   long createObligation(
@@ -27,8 +32,10 @@ public interface FinanceDao {
       BigDecimal taxRate)
       throws SQLException;
 
+  /** Locks the obligation and returns the total already paid by confirmed payments. */
   Optional<Obligation> lockObligation(Connection c, long id) throws SQLException;
 
+  /** Looks up the original payment request and its invoice for idempotent retries. */
   Optional<StoredPayment> findPayment(Connection c, String receipt) throws SQLException;
 
   Optional<InvoiceCustomer> responsible(Connection c, long student, long guardian) throws SQLException;
@@ -53,6 +60,7 @@ public interface FinanceDao {
 
   Optional<Invoice> invoice(Connection c, long id) throws SQLException;
 
+  /** Updates the file state and preserves the previous path when the new path is null. */
   int fileStatus(Connection c, long id, String status, String path) throws SQLException;
 
   List<Balance> balances(Connection c, LocalDate overdueBefore) throws SQLException;
@@ -81,6 +89,7 @@ public interface FinanceDao {
 
   Optional<Long> invoiceId(Connection c, long payment) throws SQLException;
 
+  /** Voids a confirmed payment and marks its invoice as requiring a replacement file. */
   int voidPayment(Connection c, long id, String reason) throws SQLException;
 
   void markReplacement(Connection c, long replacement, long original) throws SQLException;
@@ -89,6 +98,7 @@ public interface FinanceDao {
 
   boolean activeStudent(Connection c, long student) throws SQLException;
 
+  /** Records a completed render only if its business state still matches the rendered snapshot. */
   boolean markFileGenerated(Connection c, long id, String path, String expectedState)
       throws SQLException;
 }

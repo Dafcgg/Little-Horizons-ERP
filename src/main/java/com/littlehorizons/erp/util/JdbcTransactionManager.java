@@ -3,6 +3,7 @@ package com.littlehorizons.erp.util;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+/** Owns one JDBC connection and its commit or rollback for each service operation. */
 public final class JdbcTransactionManager {
   private final ConnectionProvider connections;
 
@@ -28,7 +29,9 @@ public final class JdbcTransactionManager {
         try {
           connection.rollback();
         } catch (SQLException rollbackError) {
+          // Keep the primary failure as the cause seen by callers.
           error.addSuppressed(rollbackError);
+          AppLogger.warning("Database rollback could not be completed", rollbackError);
         }
         if (error instanceof BusinessException rejection) AppLogger.transactionRejected(rejection);
         throw error;

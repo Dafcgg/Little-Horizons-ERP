@@ -6,6 +6,10 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 
+/**
+ * Stores academic records within a caller-owned transaction. Scheduling uses locks on grades and
+ * teachers, while changes to academic records can be serialized on the student row.
+ */
 public interface AcademicDao {
   long createTeacher(Connection c, Teacher teacher) throws SQLException;
 
@@ -15,10 +19,12 @@ public interface AcademicDao {
 
   List<Subject> subjects(Connection c) throws SQLException;
 
+  /** Returns the grade of an available subject and locks it for a scheduling change. */
   Optional<Long> lockGrade(Connection c, long subject) throws SQLException;
 
   boolean lockTeacher(Connection c, long teacher) throws SQLException;
 
+  /** Checks overlapping active slots for the teacher or for the same grade and section. */
   boolean hasScheduleConflict(
       Connection c,
       long teacher,
@@ -30,6 +36,7 @@ public interface AcademicDao {
       LocalTime end)
       throws SQLException;
 
+  /** Checks that the enrollment and active class group match before adding a subscription. */
   boolean canSubscribe(Connection c, long student, long subject, int year, String section)
       throws SQLException;
 
@@ -48,6 +55,7 @@ public interface AcademicDao {
       Connection c, long student, long subject, int year, AcademicPeriod period, String section)
       throws SQLException;
 
+  /** Checks that both the student's subscription and the teacher's assignment allow recording. */
   boolean canGrade(
       Connection c, long student, long subject, long teacher, int year, AcademicPeriod period)
       throws SQLException;
@@ -70,6 +78,7 @@ public interface AcademicDao {
   List<String> absenceReport(Connection c, LocalDate start, LocalDate end, int threshold)
       throws SQLException;
 
+  /** Returns counts per student with both date boundaries included. */
   List<AbsenceSummary> absenceCounts(Connection c, LocalDate start, LocalDate end)
       throws SQLException;
 
@@ -103,6 +112,7 @@ public interface AcademicDao {
 
   int deleteSchedule(Connection c, long id) throws SQLException;
 
+  /** Checks for an overlap while excluding the existing slot being edited. */
   boolean scheduleConflict(
       Connection c,
       long teacher,

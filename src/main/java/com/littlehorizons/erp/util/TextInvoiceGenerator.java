@@ -33,6 +33,7 @@ public final class TextInvoiceGenerator implements InvoiceRenderer {
     Files.createDirectories(directory);
     Path destination =
         directory.resolve(String.format(Locale.ROOT, "factura_%06d.txt", invoice.id()));
+    // Build the replacement next to the final file so readers see a complete invoice.
     Path temporary = Files.createTempFile(directory, "invoice-", ".tmp");
     try {
       Files.writeString(temporary, format(invoice), StandardCharsets.UTF_8);
@@ -53,6 +54,7 @@ public final class TextInvoiceGenerator implements InvoiceRenderer {
 
   private static String format(Invoice invoice) {
     boolean cancelled = "Anulada".equals(invoice.businessStatus());
+    // Historical invoices may only have a date; an invented issue time would change the record.
     String time =
         invoice.issueTime() == null ? "No registrada" : TIME_FORMAT.format(invoice.issueTime());
     var document = new StringBuilder();

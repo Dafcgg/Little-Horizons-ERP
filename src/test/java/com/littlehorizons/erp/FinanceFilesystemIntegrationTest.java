@@ -137,7 +137,9 @@ class FinanceFilesystemIntegrationTest {
     Invoice failed = finance.invoice(payment.invoiceId());
     assertEquals("Fallida", failed.status());
     assertNull(failed.path());
-    assertTrue(log().contains("Invoice rendering failed for invoice " + failed.id()));
+    assertTrue(log().lines().anyMatch(line -> line.matches(
+        "\\d{4}-\\d{2}-\\d{2}T[^ ]+Z \\[SEVERE\\] Invoice rendering failed for invoice "
+            + failed.id())));
     assertTrue(log().contains("FileAlreadyExistsException"));
     assertEquals(1, paymentsFor(obligation));
     Files.delete(output);
@@ -193,7 +195,7 @@ class FinanceFilesystemIntegrationTest {
             BusinessException.class,
             () -> finance.correctPayment(initial.paymentId(), excessive, "Mistyped amount"));
     assertEquals("El pago supera el saldo pendiente.", rejection.getMessage());
-    assertTrue(log().contains("Database transaction rejected by a business rule"));
+    assertTrue(log().contains("[FINE] Database transaction rejected by a business rule"));
     assertTrue(log().contains("BusinessException: " + rejection.getMessage()));
     assertEquals("Confirmado", finance.payment(initial.paymentId()).status());
     Invoice invoice = finance.invoice(initial.invoiceId());

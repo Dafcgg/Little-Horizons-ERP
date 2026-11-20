@@ -10,6 +10,7 @@ import com.littlehorizons.erp.view.ConsoleView;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/** Wires the MVC layers and owns the lifecycle of an interactive console session. */
 public final class Main {
   private Main() {}
 
@@ -20,14 +21,17 @@ public final class Main {
       System.err.println("No se pudo abrir error_log.txt: " + error.getMessage());
       return;
     }
+    AppLogger.info("Console session started");
     run(
         new ConsoleView(System.in, System.out),
         DatabaseConnection.getInstance(),
         new TextInvoiceGenerator(
             Path.of(System.getenv().getOrDefault("ERP_INVOICE_DIR", "invoices"))));
+    AppLogger.info("Console session ended");
   }
 
   static void run(ConsoleView view, ConnectionProvider connections, InvoiceRenderer renderer) {
+    // The same composition serves both the interactive entry point and the console integration tests.
     var studentService = new StudentService(connections, new JdbcStudentDao());
     var academicService = new AcademicService(connections, new JdbcAcademicDao());
     var activityService = new ActivityService(connections, new JdbcActivityDao());

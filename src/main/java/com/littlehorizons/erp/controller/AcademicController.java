@@ -78,7 +78,7 @@ public final class AcademicController {
                       view.id("ID profesor"),
                       view.year(),
                       view.choice("Período", AcademicPeriod.class),
-                      view.decimal("Nota 0.0–5.0")));
+                      view.decimal("Nota 0.0–5.0", AcademicService::validateGrade)));
               view.show("Nota guardada.");
             }),
         new Action(

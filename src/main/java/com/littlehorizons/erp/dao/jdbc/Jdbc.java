@@ -3,11 +3,13 @@ package com.littlehorizons.erp.dao.jdbc;
 import java.sql.*;
 import java.util.*;
 
+/** Binds SQL parameters and closes statements and cursors on a caller-managed connection. */
 public final class Jdbc {
   private Jdbc() {}
 
   @FunctionalInterface
   public interface Mapper<T> {
+    /** Copies the current row while the result set is still open. */
     T map(ResultSet result) throws SQLException;
   }
 

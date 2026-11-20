@@ -5,6 +5,7 @@ import com.littlehorizons.erp.model.*;
 import com.littlehorizons.erp.util.*;
 import java.util.*;
 
+/** Enforces club capacity and event participation rules across concurrent requests. */
 public final class ActivityService extends TransactionalService {
   private final ActivityDao dao;
 
@@ -14,6 +15,7 @@ public final class ActivityService extends TransactionalService {
   }
 
   private static void validateDescription(String description) {
+    // MySQL TEXT limits the UTF-8 byte count rather than the number of characters.
     textByteLength(description, "La descripción", 65_535);
   }
 
@@ -33,6 +35,7 @@ public final class ActivityService extends TransactionalService {
     return transaction(dao::clubs);
   }
 
+  /** Locks the club before checking capacity so two requests cannot claim the same seat. */
   public void join(long clubId, long student) {
     transaction(
         c -> {

@@ -2,8 +2,10 @@ package com.littlehorizons.erp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.littlehorizons.erp.service.FinanceService;
 import com.littlehorizons.erp.view.ConsoleView;
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,21 @@ class ConsoleViewTest {
             new ByteArrayInputStream("q\n".getBytes(StandardCharsets.UTF_8)), System.out);
     assertThrows(ConsoleView.Cancelled.class, () -> view.required("Nombre"));
     assertThrows(ConsoleView.EndOfInput.class, () -> view.id("ID"));
+  }
+
+  @Test
+  void paymentAmountRetriesBeforeProceedingAndStillAllowsCancellation() {
+    var bytes = new ByteArrayOutputStream();
+    var input = new ByteArrayInputStream("0\n4,50\n-1\nq\n".getBytes(StandardCharsets.UTF_8));
+    var view = new ConsoleView(input, new PrintStream(bytes));
+
+    assertEquals(new BigDecimal("4.50"),
+        view.decimal("Monto", FinanceService::positivePaymentAmount));
+    assertThrows(ConsoleView.Cancelled.class,
+        () -> view.decimal("Monto", FinanceService::positivePaymentAmount));
+    String transcript = bytes.toString(StandardCharsets.UTF_8);
+    assertTrue(transcript.contains("El pago debe ser positivo. Intente de nuevo."));
+    assertTrue(transcript.contains("Importe inválido"));
   }
 
   @Test

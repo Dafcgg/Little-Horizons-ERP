@@ -7,7 +7,12 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 
+/** Coordinates academic persistence without taking ownership of the service transaction. */
 public final class JdbcAcademicDao implements AcademicDao {
+  private final JdbcSubscriptionQueries subscriptionQueries = new JdbcSubscriptionQueries();
+
+  private final JdbcScheduleQueries scheduleQueries = new JdbcScheduleQueries();
+
   public long createTeacher(Connection c, Teacher t) throws SQLException {
     return Jdbc.insert(
         c,
@@ -61,25 +66,11 @@ profesores(numero_documento,primer_nombre,primer_apellido,correo_electronico,esp
   }
 
   public Optional<Long> lockGrade(Connection c, long subject) throws SQLException {
-    return Jdbc.query(
-            c,
-            """
-SELECT g.id_grado FROM grados g JOIN materias m ON m.id_grado=g.id_grado WHERE m.id_materia=? AND
-m.esta_activa=TRUE AND g.esta_activo=TRUE FOR UPDATE
-""",
-            r -> r.getLong(1),
-            subject)
-        .stream()
-        .findFirst();
+    return scheduleQueries.lockGrade(c, subject);
   }
 
   public boolean lockTeacher(Connection c, long teacher) throws SQLException {
-    return !Jdbc.query(
-            c,
-            "SELECT id_profesor FROM profesores WHERE id_profesor=? AND estado='Activo' FOR UPDATE",
-            r -> r.getLong(1),
-            teacher)
-        .isEmpty();
+    return scheduleQueries.lockTeacher(c, teacher);
   }
 
   public boolean hasScheduleConflict(
@@ -92,22 +83,7 @@ m.esta_activa=TRUE AND g.esta_activo=TRUE FOR UPDATE
       LocalTime start,
       LocalTime end)
       throws SQLException {
-    return Jdbc.count(
-            c,
-            """
-SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
-materias m ON m.id_materia=a.id_materia WHERE a.esta_activa=TRUE AND a.anio_academico=? AND
-h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR (m.id_grado=? AND
-a.seccion=? AND a.esta_activa=TRUE))
-""",
-            year,
-            day,
-            end,
-            start,
-            teacher,
-            grade,
-            section)
-        > 0;
+    return scheduleQueries.hasScheduleConflict(c, teacher, grade, year, section, day, start, end);
   }
 
   public void assign(
@@ -120,74 +96,18 @@ a.seccion=? AND a.esta_activa=TRUE))
       LocalTime start,
       LocalTime end)
       throws SQLException {
-    var assignments =
-        Jdbc.query(
-            c,
-            """
-SELECT id_asignacion FROM asignaciones_profesor WHERE id_profesor=? AND id_materia=? AND
-anio_academico=? AND seccion=?
-""",
-            r -> r.getLong(1),
-            teacher,
-            subject,
-            year,
-            section);
-    long assignment =
-        assignments.isEmpty()
-            ? Jdbc.insert(
-                c,
-                """
-INSERT INTO asignaciones_profesor(id_profesor,id_materia,anio_academico,seccion) VALUES(?,?,?,?)
-""",
-                teacher,
-                subject,
-                year,
-                section)
-            : assignments.get(0);
-    Jdbc.update(
-        c, "UPDATE asignaciones_profesor SET esta_activa=TRUE WHERE id_asignacion=?", assignment);
-    Jdbc.update(
-        c,
-        "INSERT INTO horarios(id_asignacion,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?)",
-        assignment,
-        day,
-        start,
-        end);
+    scheduleQueries.assign(c, teacher, subject, year, section, day, start, end);
   }
 
   public boolean canSubscribe(Connection c, long student, long subject, int year, String section)
       throws SQLException {
-    return Jdbc.count(
-            c,
-            """
-SELECT COUNT(*) FROM matriculas mt JOIN materias m ON m.id_grado=mt.id_grado JOIN estudiantes e ON
-e.id_estudiante=mt.id_estudiante WHERE mt.id_estudiante=? AND m.id_materia=? AND mt.anio_academico=?
-AND mt.estado_matricula='Activa' AND e.estado='Activo' AND m.esta_activa=TRUE AND EXISTS(SELECT 1
-FROM asignaciones_profesor a WHERE a.id_materia=m.id_materia AND a.anio_academico=mt.anio_academico
-AND a.seccion=? AND a.esta_activa=TRUE)
-""",
-            student,
-            subject,
-            year,
-            section)
-        > 0;
+    return subscriptionQueries.canSubscribe(c, student, subject, year, section);
   }
 
   public void subscribe(
       Connection c, long student, long subject, int year, AcademicPeriod period, String section)
       throws SQLException {
-    Jdbc.update(
-        c,
-        """
-INSERT INTO
-inscripciones_materia(id_estudiante,id_materia,anio_academico,periodo_academico,seccion,fecha_inscripcion)
- VALUES(?,?,?,?,?,CURRENT_DATE)
-""",
-        student,
-        subject,
-        year,
-        period.databaseValue(),
-        section);
+    subscriptionQueries.subscribe(c, student, subject, year, period, section);
   }
 
   public boolean canGrade(
@@ -408,92 +328,37 @@ id_materia=?)
         > 0;
   }
 
-  private TeachingAssignment assignment(java.sql.ResultSet r) throws SQLException {
-    return new TeachingAssignment(
-        r.getLong("id_asignacion"),
-        r.getLong("id_profesor"),
-        r.getLong("id_materia"),
-        r.getInt("anio_academico"),
-        r.getString("seccion"),
-        r.getBoolean("esta_activa"));
-  }
-
   public List<TeachingAssignment> assignments(Connection c) throws SQLException {
-    return Jdbc.query(
-        c, "SELECT * FROM asignaciones_profesor ORDER BY id_asignacion", this::assignment);
+    return scheduleQueries.assignments(c);
   }
 
   public Optional<TeachingAssignment> assignment(Connection c, long id, boolean lock)
       throws SQLException {
-    return Jdbc.query(
-            c,
-            lock
-                ? "SELECT * FROM asignaciones_profesor WHERE id_asignacion=? FOR UPDATE"
-                : "SELECT * FROM asignaciones_profesor WHERE id_asignacion=?",
-            this::assignment,
-            id)
-        .stream()
-        .findFirst();
+    return scheduleQueries.assignment(c, id, lock);
   }
 
   public int updateAssignment(Connection c, TeachingAssignment a) throws SQLException {
-    return Jdbc.update(
-        c,
-        """
-UPDATE asignaciones_profesor SET id_profesor=?,id_materia=?,anio_academico=?,seccion=?,esta_activa=?
-WHERE id_asignacion=?
-""",
-        a.teacherId(),
-        a.subjectId(),
-        a.year(),
-        a.section(),
-        a.active(),
-        a.id());
+    return scheduleQueries.updateAssignment(c, a);
   }
 
   public boolean assignmentHasHistory(Connection c, TeachingAssignment a) throws SQLException {
-    return Jdbc.count(
-            c,
-            """
-SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND anio_academico=? AND seccion=?
-""",
-            a.subjectId(),
-            a.year(),
-            a.section())
-        > 0;
-  }
-
-  private ClassSchedule schedule(java.sql.ResultSet r) throws SQLException {
-    return new ClassSchedule(
-        r.getLong("id_horario"),
-        r.getLong("id_asignacion"),
-        r.getInt("dia_semana"),
-        r.getTime("hora_inicio").toLocalTime(),
-        r.getTime("hora_fin").toLocalTime());
+    return scheduleQueries.assignmentHasHistory(c, a);
   }
 
   public List<ClassSchedule> schedules(Connection c) throws SQLException {
-    return Jdbc.query(c, "SELECT * FROM horarios ORDER BY id_horario", this::schedule);
+    return scheduleQueries.schedules(c);
   }
 
   public Optional<ClassSchedule> schedule(Connection c, long id) throws SQLException {
-    return Jdbc.query(c, "SELECT * FROM horarios WHERE id_horario=? FOR UPDATE", this::schedule, id)
-        .stream()
-        .findFirst();
+    return scheduleQueries.schedule(c, id);
   }
 
   public int updateSchedule(Connection c, ClassSchedule s) throws SQLException {
-    return Jdbc.update(
-        c,
-        "UPDATE horarios SET dia_semana=?,hora_inicio=?,hora_fin=? WHERE id_horario=?",
-        s.day(),
-        s.start(),
-        s.end(),
-        s.id());
+    return scheduleQueries.updateSchedule(c, s);
   }
 
   public int deleteSchedule(Connection c, long id) throws SQLException {
-    return Jdbc.update(c, "DELETE FROM horarios WHERE id_horario=?", id);
+    return scheduleQueries.deleteSchedule(c, id);
   }
 
   public boolean scheduleConflict(
@@ -507,80 +372,23 @@ SELECT COUNT(*) FROM inscripciones_materia WHERE id_materia=? AND anio_academico
       LocalTime end,
       long excluded)
       throws SQLException {
-    return Jdbc.count(
-            c,
-            """
-SELECT COUNT(*) FROM horarios h JOIN asignaciones_profesor a ON a.id_asignacion=h.id_asignacion JOIN
-materias m ON m.id_materia=a.id_materia WHERE h.id_horario<>? AND a.esta_activa=TRUE AND
-a.anio_academico=? AND h.dia_semana=? AND h.hora_inicio<? AND h.hora_fin>? AND (a.id_profesor=? OR
-(m.id_grado=? AND a.seccion=?))
-""",
-            excluded,
-            year,
-            day,
-            end,
-            start,
-            teacher,
-            grade,
-            section)
-        > 0;
-  }
-
-  private Subscription subscription(java.sql.ResultSet r) throws SQLException {
-    return new Subscription(
-        r.getLong("id_inscripcion"),
-        r.getLong("id_estudiante"),
-        r.getLong("id_materia"),
-        r.getInt("anio_academico"),
-        AcademicPeriod.valueOf(r.getString("periodo_academico")),
-        r.getString("seccion"),
-        r.getString("estado"));
+    return scheduleQueries.scheduleConflict(c, teacher, grade, year, section, day, start, end, excluded);
   }
 
   public List<Subscription> subscriptions(Connection c, long student) throws SQLException {
-    return Jdbc.query(
-        c,
-        "SELECT * FROM inscripciones_materia WHERE id_estudiante=? ORDER BY id_inscripcion",
-        this::subscription,
-        student);
+    return subscriptionQueries.subscriptions(c, student);
   }
 
   public Optional<Subscription> subscription(Connection c, long id) throws SQLException {
-    return Jdbc.query(
-            c,
-            "SELECT * FROM inscripciones_materia WHERE id_inscripcion=? FOR UPDATE",
-            this::subscription,
-            id)
-        .stream()
-        .findFirst();
+    return subscriptionQueries.subscription(c, id);
   }
 
   public int updateSubscription(Connection c, Subscription s) throws SQLException {
-    return Jdbc.update(
-        c,
-        "UPDATE inscripciones_materia SET seccion=?,estado=? WHERE id_inscripcion=?",
-        s.section(),
-        s.status(),
-        s.id());
+    return subscriptionQueries.updateSubscription(c, s);
   }
 
   public boolean subscriptionHasHistory(Connection c, Subscription s) throws SQLException {
-    return Jdbc.count(
-            c,
-            """
-SELECT EXISTS(SELECT 1 FROM registros_academicos WHERE id_estudiante=? AND id_materia=? AND
-anio_academico=? AND periodo_academico=?) OR EXISTS(SELECT 1 FROM asistencias WHERE id_estudiante=? AND
-id_materia=? AND anio_academico=? AND periodo_academico=?)
-""",
-            s.studentId(),
-            s.subjectId(),
-            s.year(),
-            s.period().databaseValue(),
-            s.studentId(),
-            s.subjectId(),
-            s.year(),
-            s.period().databaseValue())
-        > 0;
+    return subscriptionQueries.subscriptionHasHistory(c, s);
   }
 
   public List<AttendanceRecord> attendances(Connection c, long student) throws SQLException {

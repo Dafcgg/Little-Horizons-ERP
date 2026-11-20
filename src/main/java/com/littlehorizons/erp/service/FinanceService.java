@@ -11,6 +11,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+/** Keeps payment and invoice records consistent before generating their local text documents. */
 public final class FinanceService extends TransactionalService {
   private final FinanceDao dao;
   private final InvoiceRenderer renderer;
@@ -27,6 +28,7 @@ public final class FinanceService extends TransactionalService {
     this.school = school;
   }
 
+  /** Checks the schema's monetary range and normalizes valid amounts to two decimal places. */
   public static BigDecimal money(BigDecimal amount) {
     require(
         amount != null
@@ -99,10 +101,16 @@ public final class FinanceService extends TransactionalService {
         });
   }
 
+  /** Validates a payment amount without opening a transaction or recording a payment. */
+  public static BigDecimal positivePaymentAmount(BigDecimal value) {
+    BigDecimal amount = money(value);
+    require(amount.signum() > 0, "El pago debe ser positivo.");
+    return amount;
+  }
+
   private PaymentRequest normalizePayment(PaymentRequest input) {
     require(input != null, "Datos del pago obligatorios.");
-    BigDecimal amount = money(input.amount());
-    require(amount.signum() > 0, "El pago debe ser positivo.");
+    BigDecimal amount = positivePaymentAmount(input.amount());
     require(
         isDatabaseDate(input.date())
             && !input.date().isAfter(LocalDate.now())
@@ -120,6 +128,7 @@ public final class FinanceService extends TransactionalService {
     return request;
   }
 
+  /** Commits the payment and invoice before attempting any filesystem work. */
   public PaymentResult confirmPayment(PaymentRequest input) {
     PaymentRequest request = normalizePayment(input);
     StoredPayment stored = transaction(savePayment(request));
@@ -138,6 +147,7 @@ public final class FinanceService extends TransactionalService {
           "La obligación está anulada.");
       Optional<StoredPayment> existing = dao.findPayment(c, receipt);
       if (existing.isPresent()) {
+        // A retry with the same receipt is safe only when the confirmed payload also matches.
         require(
             samePayment(existing.get().request(), request),
             "El recibo ya existe con datos diferentes.");
@@ -180,6 +190,7 @@ public final class FinanceService extends TransactionalService {
         && left.method() == right.method();
   }
 
+  /** Rebuilds the TXT from its stored snapshot without creating a payment. */
   public PaymentResult regenerate(long invoiceId) {
     Invoice invoice =
         transaction(
@@ -429,6 +440,7 @@ public final class FinanceService extends TransactionalService {
     return voidPayment(invoice(id).paymentId(), reason);
   }
 
+  /** Reverses and replaces the payment in one transaction so its balance stays consistent. */
   public PaymentResult correctPayment(long id, PaymentRequest replacement, String reason) {
     PaymentRequest request = normalizePayment(replacement);
     String normalized = normalizeText(reason, "Motivo", 255);

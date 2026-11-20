@@ -26,7 +26,7 @@ Incluye operaciones de creación, consulta, edición y baja para las 26 entidade
 | MySQL | 8.0+; mínimo efectivo 8.0.16 por los `CHECK` | Persistencia InnoDB, claves foráneas y bloqueos. |
 | MySQL Connector/J | 26.10.0 | Driver JDBC, dependencia `com.mysql:mysql-connector-j`. |
 | JUnit Jupiter | 5.11.4 | Pruebas unitarias y de integración. |
-| `java.util.logging` | Incluido en Java | Registro de errores con `AppLogger`. |
+| `java.util.logging` | Incluido en Java | Registro con marca de tiempo UTC, nivel y traza mediante `AppLogger`. |
 
 Las versiones de dependencias proceden de [pom.xml](pom.xml). Maven Shade genera un JAR con dependencias, conserva el proveedor JDBC y define `Main` como punto de entrada. La codificación de fuentes es UTF-8.
 
@@ -108,7 +108,7 @@ $env:ERP_INVOICE_DIR='invoices'
 | `ERP_SCHOOL_NAME` / `ERP_SCHOOL_NIT` | Nombre predeterminado: `Colegio Internacional Little Horizons S.A.S.`; NIT de demostración con sufijo `SIMULADO`. |
 | `ERP_SCHOOL_ADDRESS` / `ERP_SCHOOL_PHONE` / `ERP_SCHOOL_EMAIL` | Datos configurables del emisor; el correo de demostración usa `example.invalid`. |
 
-[.env.example](.env.example) documenta las variables; la aplicación **no carga `.env` automáticamente**. No incluya credenciales reales en el repositorio. `.gitignore` excluye `.env` y sus variantes locales.
+Para ejecutar el proyecto desde IntelliJ sin configurar variables en cada perfil, copie [.env.example](.env.example) a `.env` en la raíz del proyecto y use esa raíz como directorio de trabajo. El ERP lee de ahí `ERP_DB_URL`, `ERP_DB_USER` y `ERP_DB_PASSWORD`. Indique el puerto de su instancia de MySQL en la URL. Las variables del proceso tienen prioridad sobre el archivo. Exporte las demás variables si necesita personalizarlas. `.gitignore` excluye `.env` y sus variantes locales.
 
 ### 6.3 Driver JDBC MySQL Connector/J
 
@@ -173,7 +173,7 @@ Después de importar la base y configurar las variables:
 java -Duser.timezone=America/Bogota -jar target/little-horizons-erp-1.0.0-SNAPSHOT.jar
 ```
 
-Alternativa de desarrollo: `mvn exec:java`. El menú abre sin conectar a MySQL; cada operación obtiene una conexión cuando la necesita. `0` vuelve o sale, `q` cancela y Enter conserva el valor actual en los formularios de edición. Use fechas `AAAA-MM-DD`, horas `HH:MM` e importes con punto o coma decimal.
+Alternativa de desarrollo: `mvn exec:java`. El menú abre sin conectar a MySQL; cada operación obtiene una conexión cuando la necesita. `0` vuelve o sale, `q` cancela y Enter conserva el valor actual en los formularios de edición. Use fechas `AAAA-MM-DD`, horas `HH:MM` e importes con punto o coma decimal. Ante una entrada inválida, el menú o formulario vuelve a pedir el mismo campo. El rango y la precisión de la nota y el monto de un pago nuevo se comprueban antes de ejecutar la operación.
 
 ## 8. Estructura del Proyecto
 
@@ -209,10 +209,10 @@ Little-Horizons-ERP/
 | Capa | Responsabilidad y clases reales |
 | --- | --- |
 | Modelo | Records y enums como `Club`, `SchoolEvent`, `Invoice`, `LoanEntry` y `AbsenceSummary`. |
-| Vista | `ConsoleView` lee entradas; `ConsoleFormatter` presenta los datos en español. |
+| Vista | `ConsoleView` coordina la presentación, `ConsoleInput` captura y reintenta entradas, `ConsoleMenu` controla la navegación, y `ConsoleFormatter`, `AcademicConsoleFormatter` y `FinanceConsoleFormatter` presentan los datos en español. |
 | Controlador | `AcademicController`, `ActivityController`, `FinanceController`, `ResourceController` y controladores administrativos coordinan los formularios. |
 | Servicio | Reglas de negocio y reportes en `AcademicService`, `ActivityService`, `FinanceService` y `ResourceService`. `TransactionalService` delega la ejecución transaccional. |
-| DAO | Interfaces de persistencia; implementaciones `Jdbc*Dao` con SQL estático parametrizado. `Jdbc` gestiona sentencias y resultados. |
+| DAO | Interfaces de persistencia e implementaciones `Jdbc*Dao` con SQL estático parametrizado. `JdbcScheduleQueries`, `JdbcSubscriptionQueries` y `JdbcInvoiceQueries` agrupan consultas por responsabilidad. `Jdbc` gestiona sentencias y resultados. |
 | Utilidades | `DatabaseConnection`, `ConnectionProvider`, `JdbcTransactionManager`, `AppLogger`, `BusinessException`, `InvoiceRenderer` y `TextInvoiceGenerator`. |
 | Composición | `Main` construye e inyecta dependencias y abre el menú. |
 
@@ -352,7 +352,7 @@ return transaction(c -> dao.absenceCounts(c, start, end)).stream()
 
 ## 11. Manejo de Errores y Logs
 
-`BusinessException` expresa validaciones recuperables con mensajes en español. `AppLogger` registra las causas técnicas mediante `java.util.logging` en `error_log.txt`, con UTF-8, límite aproximado de 1 MB y un archivo de rotación. Si no puede abrirse el log al iniciar, `Main` informa y termina. Los fallos deliberados de pruebas pueden producir entradas de error esperadas sin representar fallos de la suite.
+`BusinessException` expresa validaciones recuperables con mensajes en español. `AppLogger` escribe `error_log.txt` en UTF-8 mediante `java.util.logging`. Cada entrada comienza con una marca de tiempo ISO 8601 en UTC y su nivel. `INFO` registra el inicio y cierre de la consola, `FINE` los rechazos de negocio dentro de una transacción, `WARNING` los fallos al intentar un rollback y `SEVERE` los errores de operación. Los fallos incluyen su traza. El archivo tiene un límite aproximado de 1 MB. Si no puede abrirse al iniciar, `Main` informa y termina. Las pruebas de recuperación provocan errores deliberados para comprobar lo que queda registrado.
 
 `JdbcTransactionManager` configura `READ_COMMITTED`, desactiva autocommit, ejecuta commit al completar y rollback ante error SQL, excepción de ejecución o `Error`. Si el rollback también falla, esa causa queda suprimida en la excepción original. `TransactionalService` delega en esta utilidad sin importar `java.sql`. Conexiones, sentencias y resultados se cierran con `try-with-resources`.
 

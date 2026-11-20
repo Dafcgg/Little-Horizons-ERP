@@ -56,7 +56,7 @@ public final class FinanceController {
                         new PaymentRequest(
                             view.id("ID obligación"),
                             view.id("ID acudiente"),
-                            view.decimal("Monto pagado COP"),
+                            view.decimal("Monto pagado COP", FinanceService::positivePaymentAmount),
                             view.date("Fecha pago"),
                             view.choice("Método", PaymentMethod.class),
                             view.required("Número de recibo (reutilizar en reintentos)"))))),
