@@ -175,7 +175,7 @@ java -Duser.timezone=America/Bogota -jar target/little-horizons-erp-1.0.0-SNAPSH
 
 Alternativa de desarrollo: `mvn exec:java`. El menú abre sin conectar a MySQL; cada operación obtiene una conexión cuando la necesita. `0` vuelve o sale, `q` cancela y Enter conserva el valor actual en los formularios de edición. Use fechas `AAAA-MM-DD`, horas `HH:MM` e importes con punto o coma decimal. Ante una entrada inválida, el menú o formulario vuelve a pedir el mismo campo. El rango y la precisión de la nota y el monto de un pago nuevo se comprueban antes de ejecutar la operación.
 
-Para **TEST - Importar Asistencias desde CSV**, ejecute el ERP desde la raíz del proyecto. El [CSV de ejemplo](asistencias_importar.csv) trae diez registros compatibles con la base recién importada. El archivo debe comenzar con la cabecera exacta `id_estudiante;id_materia;fecha;estado`, con o sin BOM UTF-8. Cada fila válida se guarda por separado. El TXT en `reports/reporte_importacion_asistencias_YYYYMMDD_HHmmss.txt` incluye la efectividad, los conteos por estado, los errores y los IDs de las asistencias guardadas. Los duplicados y las validaciones fallidas se registran en `error_log.txt`. Como el esquema exige año y período académico, la importación usa el año y el trimestre calendario de la fecha. El I abarca enero a marzo y el IV abarca octubre a diciembre.
+Para **TEST - Importar Asistencias desde TXT**, ejecute el ERP desde la raíz del proyecto. El [TXT de ejemplo](asistencias_importar.txt) trae diez registros compatibles con la base recién importada. El archivo debe comenzar con la cabecera exacta `id_estudiante;id_materia;fecha;estado`, con o sin BOM UTF-8. Cada fila válida se guarda por separado. El TXT en `reports/reporte_importacion_asistencias_YYYYMMDD_HHmmss.txt` incluye la efectividad, los conteos por estado, los errores y los IDs de las asistencias guardadas. Los duplicados y las validaciones fallidas se registran en `error_log.txt`. Como el esquema exige año y período académico, la importación usa el año y el trimestre calendario de la fecha. El I abarca enero a marzo y el IV abarca octubre a diciembre.
 
 ## 8. Estructura del Proyecto
 
@@ -186,7 +186,7 @@ Little-Horizons-ERP/
 ├── LICENSE
 ├── .gitignore
 ├── .env.example
-├── asistencias_importar.csv
+├── asistencias_importar.txt
 ├── docs/
 │   ├── database.sql
 │   └── migrations/

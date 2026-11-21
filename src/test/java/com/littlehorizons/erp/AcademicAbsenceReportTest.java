@@ -15,9 +15,11 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.*;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class AcademicAbsenceReportTest {
   @Test
@@ -27,14 +29,17 @@ class AcademicAbsenceReportTest {
     assertEquals(expectedReport(), service(start, end, Clock.systemUTC()).absences(start, end, 3));
   }
 
+  static Stream<Arguments> bogotaWeekBoundaries() {
+    return Stream.of(
+        Arguments.of("2026-02-02T04:59:59Z", LocalDate.parse("2026-01-26"), LocalDate.parse("2026-02-01")),
+        Arguments.of("2026-02-02T05:00:00Z", LocalDate.parse("2026-02-02"), LocalDate.parse("2026-02-08")),
+        Arguments.of("2026-02-05T17:00:00Z", LocalDate.parse("2026-02-02"), LocalDate.parse("2026-02-08")),
+        Arguments.of("2026-02-09T04:59:59Z", LocalDate.parse("2026-02-02"), LocalDate.parse("2026-02-08")),
+        Arguments.of("2026-01-01T17:00:00Z", LocalDate.parse("2025-12-29"), LocalDate.parse("2026-01-04")));
+  }
+
   @ParameterizedTest
-  @CsvSource({
-    "2026-02-02T04:59:59Z, 2026-01-26, 2026-02-01",
-    "2026-02-02T05:00:00Z, 2026-02-02, 2026-02-08",
-    "2026-02-05T17:00:00Z, 2026-02-02, 2026-02-08",
-    "2026-02-09T04:59:59Z, 2026-02-02, 2026-02-08",
-    "2026-01-01T17:00:00Z, 2025-12-29, 2026-01-04"
-  })
+  @MethodSource("bogotaWeekBoundaries")
   void currentWeekUsesBogotaMondayThroughSundayAndStrictThreshold(
       String instant, LocalDate start, LocalDate end) {
     Clock clock = Clock.fixed(Instant.parse(instant), ZoneId.of("America/Bogota"));

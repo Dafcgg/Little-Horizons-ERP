@@ -88,7 +88,7 @@ public final class Main {
           new Action("Finanzas y facturación", finance::run),
           new Action("Inventario y préstamos", resources::run),
           new Action("Administración, edición e inactivación", administration),
-          new Action("TEST - Importar Asistencias desde CSV", attendanceImport::run));
+          new Action("TEST - Importar Asistencias desde TXT", attendanceImport::run));
     } catch (ConsoleView.EndOfInput ignored) {
       view.show("Fin de entrada.");
     }

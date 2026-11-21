@@ -19,12 +19,12 @@ class AttendanceImportMenuTest {
   @TempDir Path projectDirectory;
 
   @Test
-  void missingCsvReturnsDirectlyToTheMainMenu() {
+  void missingTxtReturnsDirectlyToTheMainMenu() {
     String output = runImport(projectDirectory, noDatabase(), "7\n0\n");
 
-    assertTrue(output.contains("7. TEST - Importar Asistencias desde CSV"));
+    assertTrue(output.contains("7. TEST - Importar Asistencias desde TXT"));
     assertTrue(output.lines().anyMatch(
-        "Error: El archivo 'asistencias_importar.csv' no se encuentra en la carpeta raíz del proyecto."
+        "Error: El archivo 'asistencias_importar.txt' no se encuentra en la carpeta raíz del proyecto."
             ::equals));
     assertTrue(output.endsWith("Hasta pronto." + System.lineSeparator()));
     assertFalse(Files.exists(projectDirectory.resolve("reports")));
@@ -34,7 +34,7 @@ class AttendanceImportMenuTest {
   @ValueSource(strings = {"", "ID_estudiante;id_materia;fecha;estado\n1;1;2024-01-01;Presente\n",
       "id_estudiante;id_materia;fecha;estado \n", "\uFEFF\uFEFFid_estudiante;id_materia;fecha;estado\n"})
   void invalidHeaderStopsBeforeProcessingAnyData(String contents) throws Exception {
-    Files.writeString(projectDirectory.resolve("asistencias_importar.csv"), contents, UTF_8);
+    Files.writeString(projectDirectory.resolve("asistencias_importar.txt"), contents, UTF_8);
 
     String output = runImport(projectDirectory, noDatabase(), "7\n0\n");
 
@@ -48,8 +48,8 @@ class AttendanceImportMenuTest {
   @ParameterizedTest
   @ValueSource(strings = {"", "\uFEFF"})
   void headerAndBlankRowsProduceAnEmptyReportAndWaitForEnter(String prefix) throws Exception {
-    Files.writeString(projectDirectory.resolve("asistencias_importar.csv"),
-        prefix + "id_estudiante;id_materia;fecha;estado\n\n \t \n", UTF_8);
+    Files.writeString(projectDirectory.resolve("asistencias_importar.txt"),
+        prefix + "id_estudiante;id_materia;fecha;estado\n\n \t \n\u2003\u00A0\n", UTF_8);
 
     String output = runImport(projectDirectory, noDatabase(), "7\nno es Enter vacío\n\n0\n");
 
@@ -59,6 +59,11 @@ class AttendanceImportMenuTest {
     assertTrue(output.contains("Presione Enter para volver al menú principal..."));
     assertFalse(output.contains("Dato inválido"));
     assertTrue(output.endsWith("Hasta pronto." + System.lineSeparator()));
+    try (var reports = Files.list(projectDirectory.resolve("reports"))) {
+      Path report = reports.findFirst().orElseThrow();
+      assertTrue(Files.readString(report, UTF_8).lines().anyMatch(
+          line -> line.matches("│ Líneas vacías omitidas +│ 3 +│")));
+    }
   }
 
   static String runImport(Path directory, ConnectionProvider connections, String input) {

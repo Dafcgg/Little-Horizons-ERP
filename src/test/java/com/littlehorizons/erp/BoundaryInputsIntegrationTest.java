@@ -217,34 +217,40 @@ class BoundaryInputsIntegrationTest {
     assertNull(rejection.getCause());
   }
 
+  static Stream<Arguments> gradeInputs() {
+    return Stream.of(
+        Arguments.of("0.0", true),
+        Arguments.of("5.0", true),
+        Arguments.of("-0.01", false),
+        Arguments.of("5.01", false),
+        Arguments.of("3.456", false),
+        Arguments.of("1.200", true),
+        Arguments.of("0.00000", true),
+        Arguments.of("1E+2", false));
+  }
+
   @ParameterizedTest
-  @CsvSource({
-    "0.0,true",
-    "5.0,true",
-    "-0.01,false",
-    "5.01,false",
-    "3.456,false",
-    "1.200,true",
-    "0.00000,true",
-    "1E+2,false"
-  })
+  @MethodSource("gradeInputs")
   void gradeRangeAndSignificantScale(String input, boolean accepted) {
     Runnable validate = () -> AcademicService.validateGrade(new BigDecimal(input));
     if (accepted) assertDoesNotThrow(validate::run);
     else assertThrows(BusinessException.class, validate::run);
   }
 
+  static Stream<Arguments> moneyInputs() {
+    return Stream.of(
+        Arguments.of("-0.01", false),
+        Arguments.of("0.00", true),
+        Arguments.of("1.00000", true),
+        Arguments.of("0.00001", false),
+        Arguments.of("99999999.99", true),
+        Arguments.of("100000000.00", false),
+        Arguments.of("999999999999.99", false),
+        Arguments.of("1E-2147483647", false));
+  }
+
   @ParameterizedTest
-  @CsvSource({
-    "-0.01,false",
-    "0.00,true",
-    "1.00000,true",
-    "0.00001,false",
-    "99999999.99,true",
-    "100000000.00,false",
-    "999999999999.99,false",
-    "1E-2147483647,false"
-  })
+  @MethodSource("moneyInputs")
   void moneyUsesFixedScaleWithinDatabaseRange(String input, boolean accepted) {
     BigDecimal amount = new BigDecimal(input);
     if (accepted) assertEquals(amount.setScale(2), FinanceService.money(amount));
