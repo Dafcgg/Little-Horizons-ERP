@@ -9,7 +9,8 @@ import com.littlehorizons.erp.model.AttendanceStatus;
 import com.littlehorizons.erp.util.AppLogger;
 import com.littlehorizons.erp.util.BusinessException;
 import com.littlehorizons.erp.util.ConnectionProvider;
-import com.littlehorizons.erp.util.SchoolInformation;
+import com.littlehorizons.erp.util.AttendanceReportWriter;
+import com.littlehorizons.erp.model.AttendanceNames;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -32,10 +33,10 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public final class AttendanceImportService extends TransactionalService {
-  private static final String INPUT_NAME = "asistencias_importar.csv";
+  private static final String INPUT_NAME = "asistencias_importar.txt";
   private static final String HEADER = "id_estudiante;id_materia;fecha;estado";
   private static final String MISSING_FILE =
-      "Error: El archivo 'asistencias_importar.csv' no se encuentra en la carpeta raíz del proyecto.";
+      "Error: El archivo 'asistencias_importar.txt' no se encuentra en la carpeta raíz del proyecto.";
   private static final String INVALID_HEADER =
       "Error: El archivo no tiene el formato correcto. La cabecera debe ser: " + HEADER;
   private static final Pattern DATE_SHAPE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
@@ -60,6 +61,7 @@ public final class AttendanceImportService extends TransactionalService {
   }
 
   public AttendanceImportResult importFrom(Path projectDirectory) throws IOException {
+    LocalDateTime started = LocalDateTime.now(clock);
     try (BufferedReader input = openInput(projectDirectory.resolve(INPUT_NAME))) {
       String header = input.readLine();
       if (header != null && header.startsWith("\uFEFF")) header = header.substring(1);
@@ -70,12 +72,13 @@ public final class AttendanceImportService extends TransactionalService {
       Path details = Files.createTempFile(directory, "attendance-import-", ".tmp");
       try {
         var byStatus = new EnumMap<AttendanceStatus, Long>(AttendanceStatus.class);
-        long total = processRows(input, details, byStatus);
+        Counts counts = processRows(input, details, byStatus);
         long successful = byStatus.values().stream().mapToLong(Long::longValue).sum();
-        long failed = total - successful;
-        Path report = reserveReport(directory);
+        long failed = counts.total() - successful;
+        Path report = reserveReport(directory, started);
+        var result = new AttendanceImportResult(counts.total(), successful, failed, counts.skipped(), byStatus, report);
         try {
-          writeReport(report, details, total, successful, failed, byStatus);
+          AttendanceReportWriter.write(result, details, started);
         } catch (IOException failure) {
           try {
             Files.deleteIfExists(report);
@@ -84,85 +87,65 @@ public final class AttendanceImportService extends TransactionalService {
           }
           throw failure;
         }
-        return new AttendanceImportResult(total, successful, failed, report);
+        return result;
       } finally {
         Files.deleteIfExists(details);
       }
     }
   }
 
-  private long processRows(BufferedReader input, Path details, Map<AttendanceStatus, Long> byStatus)
+  private Counts processRows(BufferedReader input, Path details, Map<AttendanceStatus, Long> byStatus)
       throws IOException {
     try (BufferedWriter output = Files.newBufferedWriter(details, UTF_8)) {
       long lineNumber = 1;
       long total = 0;
+      long skipped = 0;
       String line;
       while ((line = input.readLine()) != null) {
         lineNumber++;
-        if (line.trim().isEmpty()) continue;
+        if (line.codePoints().allMatch(
+            point -> Character.isWhitespace(point) || Character.isSpaceChar(point))) {
+          skipped++;
+          continue;
+        }
         total++;
+        String[] fields = line.split(";", -1);
         try {
-          ImportRow row = parse(line);
-          long attendanceId = insert(row);
+          ImportRow row = parse(fields);
+          SavedRow saved = insert(row);
           byStatus.merge(row.status(), 1L, Long::sum);
-          output.write("S%d | %d | %d | %d | %s | %s%n".formatted(
-              lineNumber, attendanceId, row.studentId(), row.subjectId(), row.date(),
-              row.status().databaseValue()));
+          AttendanceReportWriter.saved(output, lineNumber, saved.id(),
+              row.studentId() + " - " + saved.names().student(),
+              row.subjectId() + " - " + saved.names().subject(), row.date().toString(),
+              row.status().databaseValue());
         } catch (BusinessException rejection) {
           String reason = rejection.getMessage();
-          AppLogger.warning("Attendance CSV line %d rejected: %s".formatted(lineNumber, reason), null);
-          output.write("E%d | %s | %s%n".formatted(lineNumber, line, reason));
+          AppLogger.warning("Attendance TXT line %d rejected: %s".formatted(lineNumber, reason), null);
+          AttendanceReportWriter.rejected(output, lineNumber, line, reason, rejectedNames(fields));
         }
       }
-      return total;
+      return new Counts(total, skipped);
     }
   }
 
-  private static void writeReport(
-      Path report, Path details, long total, long successful, long failed,
-      Map<AttendanceStatus, Long> byStatus) throws IOException {
-    double effectiveness = total == 0 ? 0.0 : 100.0 * successful / total;
-    try (BufferedWriter output = Files.newBufferedWriter(report, UTF_8)) {
-      output.write(String.format(Locale.ROOT, """
-          %s
-          REPORTE DETALLADO DE IMPORTACIÓN DE ASISTENCIAS
-          Archivo: %s
-
-          RESUMEN ESTADÍSTICO
-          Total de líneas en el archivo: %d
-          Líneas procesadas exitosamente: %d
-          Líneas con errores (no procesadas): %d
-          Efectividad: %.2f%%
-
-          DESGLOSE POR ESTADO
-          Estado | Cantidad
-          """, SchoolInformation.fromEnvironment().name(), INPUT_NAME, total, successful, failed,
-          effectiveness));
-      for (AttendanceStatus status : AttendanceStatus.values()) {
-        output.write("%s | %d%n".formatted(status.databaseValue(), byStatus.getOrDefault(status, 0L)));
+  private AttendanceNames rejectedNames(String[] fields) {
+    Integer student = optionalId(fields[0]);
+    Integer subject = fields.length > 1 ? optionalId(fields[1]) : null;
+    if (student != null || subject != null) {
+      try {
+        return transaction(connection -> dao.names(connection, student, subject));
+      } catch (BusinessException unavailable) {
+        AppLogger.warning("Could not resolve attendance names for the report", unavailable);
       }
-
-      output.write("\nDETALLE DE ERRORES\nLínea del CSV | Contenido crudo | Motivo\n");
-      if (failed == 0) output.write("Sin errores.\n");
-      else appendDetails(output, details, 'E');
-
-      output.write("\nREGISTROS IMPORTADOS\n"
-          + "Línea del CSV | ID asistencia | ID estudiante | ID materia | Fecha | Estado\n");
-      if (successful == 0) output.write("Sin registros importados.\n");
-      else appendDetails(output, details, 'S');
     }
+    return new AttendanceNames(null, null);
   }
 
-  private static void appendDetails(BufferedWriter output, Path details, char marker)
-      throws IOException {
-    try (BufferedReader entries = Files.newBufferedReader(details, UTF_8)) {
-      String entry;
-      while ((entry = entries.readLine()) != null) {
-        if (entry.charAt(0) == marker) {
-          output.write(entry, 1, entry.length() - 1);
-          output.newLine();
-        }
-      }
+  private static Integer optionalId(String value) {
+    try {
+      return Integer.valueOf(value);
+    } catch (NumberFormatException invalid) {
+      return null;
     }
   }
 
@@ -174,8 +157,7 @@ public final class AttendanceImportService extends TransactionalService {
     }
   }
 
-  private Path reserveReport(Path directory) throws IOException {
-    LocalDateTime time = LocalDateTime.now(clock);
+  private Path reserveReport(Path directory, LocalDateTime time) throws IOException {
     while (true) {
       Path path = directory.resolve(
           "reporte_importacion_asistencias_" + REPORT_TIME.format(time) + ".txt");
@@ -187,8 +169,7 @@ public final class AttendanceImportService extends TransactionalService {
     }
   }
 
-  private static ImportRow parse(String line) {
-    String[] fields = line.split(";", -1);
+  private static ImportRow parse(String[] fields) {
     require(fields.length == 4, "Se esperaban exactamente 4 campos separados por punto y coma.");
     int studentId = integer(fields[0], "id_estudiante");
     int subjectId = integer(fields[1], "id_materia");
@@ -196,7 +177,7 @@ public final class AttendanceImportService extends TransactionalService {
     AttendanceStatus status = Arrays.stream(AttendanceStatus.values())
         .filter(candidate -> candidate.databaseValue().equals(fields[3]))
         .findFirst()
-        .orElseThrow(() -> new BusinessException("Estado de asistencia inválido."));
+        .orElseThrow(() -> new BusinessException("Estado de asistencia inválido. Use Presente, Ausente, Tardanza o Excusa Médica."));
     return new ImportRow(studentId, subjectId, date, status);
   }
 
@@ -218,16 +199,22 @@ public final class AttendanceImportService extends TransactionalService {
     }
   }
 
-  private long insert(ImportRow row) {
-    // The CSV has no period and the schema requires one. Use its calendar quarter.
+  private SavedRow insert(ImportRow row) {
+    // The input file has no period and the schema requires one. Use its calendar quarter.
     AcademicPeriod period = QUARTERS.get((row.date().getMonthValue() - 1) / 3);
     return transaction(
         connection -> {
-          require(dao.studentExists(connection, row.studentId()), "El estudiante no existe.");
-          require(dao.subjectExists(connection, row.subjectId()), "La materia no existe.");
-          return dao.insert(connection, row.studentId(), row.subjectId(), row.date(), row.status(), period);
+          AttendanceNames names = dao.names(connection, row.studentId(), row.subjectId());
+          require(names.student() != null, "El estudiante no existe. Verifique su ID en el listado de estudiantes.");
+          require(names.subject() != null, "La materia no existe. Verifique su ID en el listado de materias.");
+          long id = dao.insert(connection, row.studentId(), row.subjectId(), row.date(), row.status(), period);
+          return new SavedRow(id, names);
         });
   }
+
+  private record Counts(long total, long skipped) {}
+
+  private record SavedRow(long id, AttendanceNames names) {}
 
   private record ImportRow(int studentId, int subjectId, LocalDate date, AttendanceStatus status) {}
 }

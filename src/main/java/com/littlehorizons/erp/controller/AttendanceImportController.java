@@ -25,9 +25,9 @@ public final class AttendanceImportController {
     } catch (BusinessException rejection) {
       view.showError(rejection.getMessage());
     } catch (IOException error) {
-      AppLogger.error("Attendance CSV import I/O failed", error);
+      AppLogger.error("Attendance TXT import I/O failed", error);
       view.showError(
-          "Error: No se pudo leer el CSV o escribir el reporte. Las filas ya confirmadas se conservan."
+          "Error: No se pudo leer el TXT o escribir el reporte. Las filas ya confirmadas se conservan."
               + " Consulte error_log.txt.");
     }
   }
