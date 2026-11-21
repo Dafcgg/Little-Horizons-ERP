@@ -3,7 +3,9 @@ package com.littlehorizons.erp;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.littlehorizons.erp.util.AppLogger;
 import com.littlehorizons.erp.util.ConnectionProvider;
+import com.littlehorizons.erp.util.ReportDownload;
 import com.littlehorizons.erp.view.ConsoleView;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,6 +30,7 @@ class AttendanceImportMenuTest {
             ::equals));
     assertTrue(output.endsWith("Hasta pronto." + System.lineSeparator()));
     assertFalse(Files.exists(projectDirectory.resolve("reports")));
+    assertFalse(Files.exists(projectDirectory.resolve("downloads")));
   }
 
   @ParameterizedTest
@@ -63,7 +66,34 @@ class AttendanceImportMenuTest {
       Path report = reports.findFirst().orElseThrow();
       assertTrue(Files.readString(report, UTF_8).lines().anyMatch(
           line -> line.matches("│ Líneas vacías omitidas +│ 3 +│")));
+      Path downloaded = projectDirectory.resolve("downloads").resolve(report.getFileName());
+      assertEquals(-1, Files.mismatch(report, downloaded));
+      assertTrue(output.contains("📄 Reporte guardado en el proyecto : reports/" + report.getFileName()));
+      assertTrue(output.contains("📥 Reporte descargado en el equipo  : " + downloaded.toAbsolutePath()));
     }
+  }
+
+  @Test
+  void unavailableDownloadDirectoryKeepsTheProjectReportAndReturnsToMenu() throws Exception {
+    AppLogger.configure();
+    Files.writeString(projectDirectory.resolve("asistencias_importar.txt"),
+        "id_estudiante;id_materia;fecha;estado\n", UTF_8);
+    Path unavailable = Files.writeString(projectDirectory.resolve("downloads"), "Existing file", UTF_8);
+
+    String output = runImport(projectDirectory, noDatabase(), "7\n\n0\n");
+
+    assertTrue(output.contains("📄 Reporte guardado en el proyecto : reports/"));
+    assertTrue(output.contains("No se pudo guardar la copia en Descargas"));
+    assertFalse(output.contains("📥 Reporte descargado en el equipo"));
+    assertTrue(output.endsWith("Hasta pronto." + System.lineSeparator()));
+    assertEquals("Existing file", Files.readString(unavailable, UTF_8));
+    try (var reports = Files.list(projectDirectory.resolve("reports"))) {
+      assertTrue(Files.readString(reports.findFirst().orElseThrow(), UTF_8)
+          .contains("REPORTE DE IMPORTACIÓN DE ASISTENCIAS"));
+    }
+    Path log = Path.of(System.getProperty("erp.log.path", "error_log.txt"));
+    assertTrue(Files.readString(log, UTF_8)
+        .contains("[WARNING] Could not copy attendance report to Downloads"));
   }
 
   static String runImport(Path directory, ConnectionProvider connections, String input) {
@@ -72,7 +102,7 @@ class AttendanceImportMenuTest {
         new PrintStream(output, true, UTF_8));
     Main.run(view, connections, invoice -> {
       throw new AssertionError("Attendance import must not render an invoice");
-    }, directory);
+    }, directory, new ReportDownload(directory.resolve("downloads")));
     return output.toString(UTF_8);
   }
 
