@@ -32,12 +32,12 @@ public final class Main {
   }
 
   static void run(ConsoleView view, ConnectionProvider connections, InvoiceRenderer renderer) {
-    run(view, connections, renderer, Path.of("."), new ReportDownload());
+    run(view, connections, renderer, Path.of("."));
   }
 
   static void run(
       ConsoleView view, ConnectionProvider connections, InvoiceRenderer renderer,
-      Path projectDirectory, ReportDownload reportDownload) {
+      Path projectDirectory) {
     // The same composition serves both the interactive entry point and the console integration tests.
     var studentService = new StudentService(connections, new JdbcStudentDao());
     var academicService = new AcademicService(connections, new JdbcAcademicDao());
@@ -54,7 +54,7 @@ public final class Main {
     var attendanceImport =
         new AttendanceImportController(
             new AttendanceImportService(connections, new JdbcAttendanceImportDao()),
-            new AttendanceImportView(view), projectDirectory, reportDownload);
+            new AttendanceImportView(view), projectDirectory);
     Runnable administration =
         () ->
             view.menu(

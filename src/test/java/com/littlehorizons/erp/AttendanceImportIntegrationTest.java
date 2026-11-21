@@ -36,12 +36,7 @@ class AttendanceImportIntegrationTest {
         assertTrue(output.contains(expected), output);
       }
       assertFalse(output.contains("Ya existe una asistencia"));
-      Path projectReport = projectDirectory.resolve("reports").resolve(name.group(1));
-      Path downloadedReport = projectDirectory.resolve("downloads").resolve(name.group(1));
-      assertEquals(-1, Files.mismatch(projectReport, downloadedReport));
-      assertTrue(output.contains("📥 Reporte descargado en el equipo  : "
-          + downloadedReport.toAbsolutePath()));
-      String report = Files.readString(projectReport, UTF_8);
+      String report = Files.readString(projectDirectory.resolve("reports").resolve(name.group(1)), UTF_8);
       String subject;
       try (var connection = CONNECTIONS.open()) {
         subject = Jdbc.query(connection, "SELECT nombre_materia FROM materias WHERE id_materia=?",
